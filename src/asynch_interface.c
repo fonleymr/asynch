@@ -18,6 +18,7 @@
 #if defined(HAVE_UNISTD_H)
 #include <unistd.h>
 #endif
+#include <math.h>
 
 #if defined(HAVE_MPI)
 #include <mpi.h>
@@ -30,6 +31,7 @@
 #include "solvers.h"
 #include "io.h"
 #include "data_types.h"
+#include "forcings.h"
 
 #include "asynch_interface.h"
 
@@ -136,15 +138,13 @@ void Asynch_Load_Network(AsynchSolver* asynch)
         MPI_Abort(asynch->comm, 1);
     }
 
-    asynch->sys = Create_River_Network(asynch->globals, &(asynch->N), &(asynch->id_to_loc), asynch->db_connections);
+    Create_River_Network(asynch->globals, &asynch->sys, &asynch->N, &asynch->id_to_loc, asynch->db_connections);
     if (!asynch->sys)	MPI_Abort(asynch->comm, 1);
     asynch->setup_topo = 1;
     MPI_Barrier(asynch->comm);
 }
 
-//If load_all == 1, then the parameters for every link are available on every proc.
-//If load_all == 0, then the parameters are only available for links assigned to this proc.
-void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all)
+void Asynch_Load_Network_Parameters(AsynchSolver* asynch)
 {
     int i;
     if (!asynch->setup_topo)
@@ -155,7 +155,7 @@ void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all)
             ASYNCH_SLEEP(1);
         MPI_Abort(asynch->comm, 1);
     }
-    if (!asynch->setup_partition && !load_all)
+    if (!asynch->setup_partition)
     {
         if (my_rank == 0)
             printf("Error: Paritioning must be done before reading link parameters.\n");
@@ -164,7 +164,7 @@ void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all)
         MPI_Abort(asynch->comm, 1);
     }
 
-    i = Load_Local_Parameters(asynch->sys, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->id_to_loc, asynch->globals, asynch->db_connections, load_all, asynch->custom_model, asynch->ExternalInterface);
+    i = Load_Local_Parameters(asynch->sys, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->id_to_loc, asynch->globals, asynch->db_connections, asynch->custom_model, asynch->ExternalInterface);
     if (i)	MPI_Abort(asynch->comm, 1);
     asynch->setup_params = 1;
     MPI_Barrier(asynch->comm);
@@ -200,7 +200,7 @@ void Asynch_Load_Numerical_Error_Data(AsynchSolver* asynch)
         MPI_Abort(asynch->comm, 1);
     }
 
-    i = Build_RKData(asynch->sys, asynch->rkdfilename, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->globals, asynch->errors_tol, &(asynch->AllMethods), &(asynch->nummethods));
+    i = Build_RKData(asynch->sys, asynch->rkdfilename, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->globals, asynch->errors_tol, &(asynch->rk_methods), &(asynch->num_methods));
     if (i)	MPI_Abort(asynch->comm, 1);
     asynch->setup_rkdata = 1;
     MPI_Barrier(asynch->comm);
@@ -321,7 +321,7 @@ void Asynch_Calculate_Step_Sizes(AsynchSolver* asynch)
         MPI_Abort(asynch->comm, 1);
     }
 
-    i = CalculateInitialStepSizes(asynch->sys, asynch->my_sys, asynch->my_N, asynch->globals, asynch->workspace, 1);
+    i = CalculateInitialStepSizes(asynch->sys, asynch->my_sys, asynch->my_N, asynch->globals, &asynch->workspace, 1);
     if (i)	MPI_Abort(asynch->comm, 1);
     asynch->setup_stepsizes = 1;
     MPI_Barrier(asynch->comm);
@@ -402,7 +402,7 @@ void Asynch_Finalize_Network(AsynchSolver* asynch)
         }
     }
 
-    i = FinalizeSystem(asynch->sys, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->id_to_loc, asynch->my_data, asynch->globals, asynch->db_connections, &(asynch->workspace));
+    i = FinalizeSystem(asynch->sys, asynch->N, asynch->my_sys, asynch->my_N, asynch->assignments, asynch->getting, asynch->id_to_loc, asynch->my_data, asynch->globals, asynch->db_connections, &asynch->workspace);
     if (i)	MPI_Abort(asynch->comm, 1);
     asynch->setup_finalized = 1;
     MPI_Barrier(asynch->comm);
@@ -420,8 +420,7 @@ void Asynch_Free(AsynchSolver* asynch)
     for (i = 0; i < ASYNCH_MAX_DB_CONNECTIONS; i++)
         ConnData_Free(&asynch->db_connections[i]);
     Destroy_ErrorData(asynch->errors_tol);
-    Destroy_Workspace(asynch->workspace, asynch->globals->max_s, asynch->globals->max_parents);
-    free(asynch->workspace);
+    Destroy_Workspace(&asynch->workspace, asynch->globals->max_rk_stages, asynch->globals->max_parents);
     free(asynch->getting);
     if (asynch->outputfile)	fclose(asynch->outputfile);
     if (asynch->peakfile)	fclose(asynch->peakfile);
@@ -435,8 +434,8 @@ void Asynch_Free(AsynchSolver* asynch)
     free(asynch->sys);
     free(asynch->my_sys);
     free(asynch->assignments);
-    for (i = 0; i < asynch->nummethods; i++)	Destroy_RKMethod(asynch->AllMethods[i]);
-    free(asynch->AllMethods);
+    for (i = 0; i < asynch->num_methods; i++)
+        Destroy_RKMethod(&asynch->rk_methods[i]);
     if (asynch->save_list)
         free(asynch->save_list);
     if (asynch->peaksave_list)
@@ -461,7 +460,7 @@ void Asynch_Advance(AsynchSolver* asynch, bool print_flag)
     }
 
     Advance(asynch->sys, asynch->N, asynch->my_sys, asynch->my_N, asynch->globals, asynch->assignments, asynch->getting, asynch->res_list, asynch->res_size,
-        asynch->id_to_loc, asynch->workspace, asynch->forcings, asynch->db_connections, asynch->my_data, print_flag, asynch->outputfile);
+        asynch->id_to_loc, &asynch->workspace, asynch->forcings, asynch->db_connections, asynch->my_data, print_flag, asynch->outputfile);
 }
 
 
@@ -498,7 +497,7 @@ Link* Asynch_Get_Links(AsynchSolver* asynch)
     return asynch->sys;
 }
 
-unsigned short Asynch_Get_Num_Links_Proc(AsynchSolver* asynch)
+unsigned int Asynch_Get_Num_Links_Proc(AsynchSolver* asynch)
 {
     if (!asynch)
         return 0;
@@ -669,9 +668,9 @@ int Asynch_Write_Current_Step(AsynchSolver* asynch)
             if (time_diff / current->next_save < 1e-12 || ((fabs(current->next_save) < 1e-12) ? (time_diff < 1e-12) : 0))
             {
                 //WriteStep(current->last_t,current->list->head->y_approx,asynch->globals,current->params,current->state,asynch->outputfile,current->output_user,&(current->pos));
-                WriteStep(asynch->outputfile, current->ID, current->last_t, current->list->head->y_approx, asynch->globals, current->params, current->state, current->output_user, &(current->pos_offset));	//!!!! Should be tail? !!!!
+                WriteStep(asynch->outputfile, current->ID, current->last_t, current->my->list.head->y_approx, asynch->globals, current->params, current->state, current->output_user, &(current->pos_offset));	//!!!! Should be tail? !!!!
                 current->next_save += current->print_time;
-                (current->disk_iterations)++;
+                current->disk_iterations++;
             }
         }
     }
@@ -1135,7 +1134,7 @@ int Asynch_Deactivate_Forcing(AsynchSolver* asynch, unsigned int idx)
     //Clear forcing values from links
     for (i = 0; i < my_N; i++)
     {
-        sys[my_sys[i]].forcing_values[idx] = 0.0;
+        v_set(sys[my_sys[i]].forcing_values, idx, 0.0);
         sys[my_sys[i]].forcing_change_times[idx] = asynch->globals->maxtime + 1.0;
     }
 
@@ -1173,7 +1172,7 @@ void Asynch_Reset_Peakflow_Data(AsynchSolver* asynch)
     {
         current = &sys[my_sys[i]];
         current->peak_time = t_0;
-        v_copy(current->list->tail->y_approx, current->peak_value);
+        v_copy(current->my->list.tail->y_approx, current->peak_value);
     }
 }
 
@@ -1196,14 +1195,14 @@ void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states
     for (i = 0; i < N; i++)
     {
         current = &sys[i];
-        if (current->list != NULL)
+        if (current->my != NULL)
         {
             while (current->current_iterations > 1)
             {
-                Remove_Head_Node(current->list);
+                Remove_Head_Node(&current->my->list);
                 (current->current_iterations)--;
             }
-            current->list->head->t = unix_time;
+            current->my->list.head->t = unix_time;
             current->last_t = unix_time;
             current->steps_on_diff_proc = 1;
             current->iters_removed = 0;
@@ -1214,9 +1213,9 @@ void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states
                 current->ready = 0;
 
 
-            for (j = 0; j < current->dim; j++)
-                current->list->head->y_approx.ve[j] = states[i].ve[j];
-            v_copy(states[i], current->list->head->y_approx);
+            //for (j = 0; j < current->dim; j++)
+            //    current->my->list.head->y_approx.ve[j] = states[i].ve[j];
+            v_copy(states[i], current->my->list.head->y_approx);
 
             /*
                         //Reset the next_save time
@@ -1229,12 +1228,12 @@ void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states
 
             //Reset peak flow information
             current->peak_time = unix_time;
-            v_copy(current->list->head->y_approx, current->peak_value);
+            v_copy(current->my->list.head->y_approx, current->peak_value);
 
             //Reset current state
             if (current->state_check != NULL)
-                current->state = current->state_check(current->list->head->y_approx, GlobalVars->global_params, current->params, current->qvs, current->dam);
-            current->list->head->state = current->state;
+                current->state = current->state_check(current->my->list.head->y_approx, GlobalVars->global_params, current->params, current->qvs, current->dam);
+            current->my->list.head->state = current->state;
 
             //Write initial state
             //if(current->save_flag)
@@ -1252,7 +1251,7 @@ void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states
                     for (l = 0; l < current->forcing_buff[k]->nrows - 1; l++)
                         if (current->forcing_buff[k]->data[l][0] <= unix_time && unix_time < current->forcing_buff[k]->data[l + 1][0])	break;
                     double rainfall_buffer = current->forcing_buff[k]->data[l][1];
-                    current->forcing_values[k] = rainfall_buffer;
+                    v_set(current->forcing_values, k, rainfall_buffer);
                     current->forcing_indices[k] = l;
 
                     //Find and set the new change in rainfall

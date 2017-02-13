@@ -50,7 +50,7 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ASYNCH_WITH_HDF5;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NOMINMAX;ASYNCH_WITH_HDF5;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir);$(RootDir)\third_party\zlib-1.2.8;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\hdf5-1.8.18-win64\include</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
@@ -71,7 +71,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ASYNCH_WITH_HDF5;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NOMINMAX;ASYNCH_WITH_HDF5;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir);$(RootDir)\third_party\zlib-1.2.8;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\hdf5-1.8.18-win64\include</AdditionalIncludeDirectories>
     </ClCompile>
@@ -91,11 +91,10 @@
     <ClInclude Include="$(RootDir)\src\comm.h" />
     <ClInclude Include="$(RootDir)\src\compression.h" />
     <ClInclude Include="$(RootDir)\src\data_types.h" />
-    <ClInclude Include="$(RootDir)\src\date_manip.h" />
-    <ClInclude Include="$(RootDir)\src\definetype.h" />
+    <ClInclude Include="..\..\..\src\builtin.h" />
     <ClInclude Include="$(RootDir)\src\forcings.h" />
     <ClInclude Include="$(RootDir)\src\io.h" />
-    <ClInclude Include="$(RootDir)\src\mathmethods.h" />
+    <ClInclude Include="..\..\..\src\blas.h" />
     <ClInclude Include="$(RootDir)\src\misc.h" />
     <ClInclude Include="$(RootDir)\src\modeloutputs.h" />
     <ClInclude Include="$(RootDir)\src\partition.h" />
@@ -108,7 +107,10 @@
     <ClInclude Include="$(RootDir)\src\sort.h" />
     <ClInclude Include="$(RootDir)\src\structs.h" />
     <ClInclude Include="$(RootDir)\src\system.h" />
+    <ClInclude Include="..\..\..\src\consistency.h" />
     <ClInclude Include="..\..\..\src\libpq-fwd.h" />
+    <ClInclude Include="..\..\..\src\vector.h" />
+    <ClInclude Include="..\..\..\src\vector_mpi.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(RootDir)\src\asynch_interface.c" />
@@ -119,11 +121,10 @@
     <ClCompile Include="$(RootDir)\src\comm.c" />
     <ClCompile Include="$(RootDir)\src\compression.c" />
     <ClCompile Include="$(RootDir)\src\data_types.c" />
-    <ClCompile Include="$(RootDir)\src\date_manip.c" />
-    <ClCompile Include="$(RootDir)\src\definetype.c" />
+    <ClCompile Include="..\..\..\src\builtin.c" />
     <ClCompile Include="$(RootDir)\src\forcings.c" />
     <ClCompile Include="$(RootDir)\src\io.c" />
-    <ClCompile Include="$(RootDir)\src\mathmethods.c" />
+    <ClCompile Include="..\..\..\src\blas.c" />
     <ClCompile Include="$(RootDir)\src\misc.c" />
     <ClCompile Include="$(RootDir)\src\modeloutputs.c" />
     <ClCompile Include="$(RootDir)\src\partition.c" />
@@ -135,6 +136,8 @@
     <ClCompile Include="$(RootDir)\src\solvers.c" />
     <ClCompile Include="$(RootDir)\src\sort.c" />
     <ClCompile Include="$(RootDir)\src\system.c" />
+    <ClCompile Include="..\..\..\src\consistency.c" />
+    <ClCompile Include="..\..\..\src\vector.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(RootDir)\LICENSE" />

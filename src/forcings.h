@@ -6,8 +6,6 @@
 #endif // _MSC_VER > 1000
 
 #include "structs.h"
-#include "rainfall.h"
-#include "io.h"
 
 extern int np;
 extern int my_rank;

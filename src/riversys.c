@@ -28,14 +28,23 @@
 #include <hdf5_hl.h>
 #endif
 
-#include "riversys.h"
 #include "data_types.h"
+#include "rkmethods.h"
+#include "partition.h"
+#include "comm.h"
+#include "io.h"
+#include "forcings.h"
+#include "modeloutputs.h"
+#include "builtin.h"
+#include "vector_mpi.h"
+
+#include "riversys.h"
+
 
 //Read topo data and build the network.
 //Also creates id_to_loc.
-Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int*** id_to_loc, ConnData* db_connections)
+void Create_River_Network(GlobalVars* globals, Link** system, unsigned int* N, unsigned int*** id_to_loc, ConnData* db_connections)
 {
-    Link *system;
     FILE* riverdata = NULL;
     unsigned int *link_ids = NULL;
     unsigned int *dbres_link_id = NULL;
@@ -47,6 +56,9 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
     unsigned int **loc_to_children = NULL;
     unsigned int *loc_to_children_array = NULL;
     unsigned int curr_loc;
+
+    *system = NULL;
+    *N = 0;
     
     if (globals->rvr_flag == 0)	//Read topo data from file
     {
@@ -57,13 +69,13 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
             {
                 if (my_rank == 0)	printf("Error: file %s not found for .rvr file.\n", globals->rvr_filename);
                 *N = 0;
-                return NULL;
+                return;
             }
             if (CheckWinFormat(riverdata))
             {
                 printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", globals->rvr_filename);
                 fclose(riverdata);
-                return NULL;
+                return;
             }
 
             fscanf(riverdata, "%u", N);
@@ -87,7 +99,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                 {
                     printf("Error: assumed no link has more than %u parents, but link %u has %u.\n", max_children, link_ids[i], num_parents[i]);
                     printf("If this is not an error in the input data, modify max_children in riversys.c, function Create_River_Network.\n");
-                    return NULL;
+                    return;
                 }
             }
 
@@ -118,8 +130,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
 #if defined(HAVE_POSTGRESQL)
         PGresult *mainres, *res;
         int db;
-        int k;
-
+        
         if (my_rank == 0)
         {
             if (globals->outletlink == 0)	//Grab entire network
@@ -129,12 +140,12 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                 if (db)
                 {
                     printf("[%i]: Error connecting to the topology database.\n", my_rank);
-                    return NULL;
+                    return;
                 }
                 mainres = PQexec(db_connections[ASYNCH_DB_LOC_TOPO].conn, db_connections[ASYNCH_DB_LOC_TOPO].queries[0]);	//For all link ids
                 res = PQexec(db_connections[ASYNCH_DB_LOC_TOPO].conn, db_connections[ASYNCH_DB_LOC_TOPO].queries[1]);		//For parent data
                 if (CheckResError(res, "querying connectivity") || CheckResError(mainres, "querying DEM data"))
-                    return NULL;
+                    return;
                 DisconnectPGDB(&db_connections[ASYNCH_DB_LOC_TOPO]);
 
                 *N = PQntuples(mainres);
@@ -153,7 +164,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                 if (db)
                 {
                     printf("[%i]: Error connecting to the topology database.\n", my_rank);
-                    return NULL;
+                    return;
                 }
 
                 //Make the queries
@@ -161,7 +172,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                 sprintf(db_connections[ASYNCH_DB_LOC_TOPO].query, db_connections[ASYNCH_DB_LOC_TOPO].queries[2], globals->outletlink);	//For parent data
                 res = PQexec(db_connections[ASYNCH_DB_LOC_TOPO].conn, db_connections[ASYNCH_DB_LOC_TOPO].query);
                 if (CheckResError(res, "querying connectivity"))
-                    return NULL;
+                    return;
                 DisconnectPGDB(&db_connections[ASYNCH_DB_LOC_TOPO]);
 
                 *N = PQntuples(res) + 1;
@@ -208,7 +219,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
                     num_parents[curr_loc] = j;
 
                     //Set the information to find the child links
-                    for (k = 0; k < j; k++)
+                    for (unsigned int k = 0; k < j; k++)
                         loc_to_children[curr_loc][k] = dbres_parent[i + k];
                 }
                 else	//No parents
@@ -258,7 +269,7 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
     {
         if (my_rank == 0)	printf("Error: Bad topology flag %hi in .gbl file.\n", globals->rvr_flag);
         *N = 0;
-        return NULL;
+        return;
     }
 
     //Make a list of ids and locations, sorted by id
@@ -276,32 +287,35 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
         printf("\nWarning: using more processes (%i) than links (%u).\n", np, *N);
 
     //Allocate some space for the network
-    system = (Link*)calloc(*N, sizeof(Link));
+    Link* sys = (Link*)calloc(*N, sizeof(Link));
+    *system = sys;
 
     //Build the network
     globals->max_parents = 0;
     for (i = 0; i < *N; i++)
     {
-        system[i].location = i;
-        system[i].ID = link_ids[i];
+        sys[i].my = NULL;
+
+        sys[i].location = i;
+        sys[i].ID = link_ids[i];
 
         //Set the parents
-        system[i].num_parents = num_parents[i];
-        system[i].parents = (Link**)calloc(system[i].num_parents, sizeof(Link*));
-        system[i].child = NULL;
-        globals->max_parents = (globals->max_parents > num_parents[i]) ? globals->max_parents : num_parents[i];
+        sys[i].num_parents = num_parents[i];
+        sys[i].parents = (Link**)calloc(sys[i].num_parents, sizeof(Link*));
+        sys[i].child = NULL;
+        globals->max_parents = max(globals->max_parents, num_parents[i]);
 
         //Set a few other data
-        system[i].params = v_get(0);
-        system[i].discont_end = globals->discont_size - 1;
+        sys[i].params = v_init(0);
+        sys[i].discont_end = globals->discont_size - 1;
 
-        system[i].output_user = NULL;
+        sys[i].output_user = NULL;
         //system[i].peakoutput_user = NULL;
-        //system[i].f = NULL;
-        //system[i].params = v_get(0);
+        //system[i].differential = NULL;
+        //system[i].params = v_init(0);
         //system[i].dam = 0;
         //system[i].method = NULL;
-        //system[i].errorinfo = NULL;
+        //system[i].error_data = NULL;
         //system[i].qvs = NULL;
         //system[i].discont = NULL;
         //system[i].discont_start = 0;
@@ -330,17 +344,17 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
     //Setup the child and parent information
     for (i = 0; i < *N; i++)
     {
-        for (j = 0; j < system[i].num_parents; j++)
+        for (j = 0; j < sys[i].num_parents; j++)
         {
             curr_loc = find_link_by_idtoloc(loc_to_children[i][j], *id_to_loc, *N);
             if (curr_loc > *N)
             {
                 if (my_rank == 0)	printf("Error: Invalid id in topology data (%u).\n", loc_to_children[i][j]);
                 *N = 0;
-                return NULL;
+                return;
             }
-            system[i].parents[j] = &system[curr_loc];
-            system[curr_loc].child = &system[i];
+            sys[i].parents[j] = &sys[curr_loc];
+            sys[curr_loc].child = &sys[i];
         }
     }
 
@@ -348,8 +362,8 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
     if (globals->prm_flag == 1 && globals->rvr_flag == 0)
     {
         for (i = 0; i < *N; i++)
-            if (system[i].child == NULL)	break;
-        globals->outletlink = system[i].ID;
+            if (sys[i].child == NULL)	break;
+        globals->outletlink = sys[i].ID;
     }
 
     //Clean up
@@ -361,8 +375,6 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
         free(link_ids);
     if (num_parents)
         free(num_parents);
-
-    return system;
 }
 
 
@@ -371,14 +383,14 @@ Link* Create_River_Network(GlobalVars* globals, unsigned int* N, unsigned int***
 //Returns 1 if there is an error, 0 otherwise.
 //If load_all == 1, then the parameters for every link are available on every proc.
 //If load_all == 0, then the parameters are only available for links assigned to this proc.
-int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, short int load_all, Model* custom_model, void* external)
+int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, Model* custom_model, void* external)
 {
     unsigned int i, j, *db_link_id, curr_loc;
     double *db_params_array, **db_params;
     FILE* paramdata;
 
     //Error checking
-    if (!load_all && (!assignments || !getting))
+    if (!assignments || !getting)
     {
         if (my_rank == 0)
         {
@@ -497,50 +509,26 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
     MPI_Bcast(db_link_id, N, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
     MPI_Bcast(db_params_array, N*globals->disk_params, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    //Unpack the data
-    if (load_all)
+    for (i = 0; i < N; i++)
     {
-        for (i = 0; i < N; i++)
+        curr_loc = find_link_by_idtoloc(db_link_id[i], id_to_loc, N);
+        if (curr_loc > N)
         {
-            curr_loc = find_link_by_idtoloc(db_link_id[i], id_to_loc, N);
-            if (curr_loc > N)
-            {
-                if (my_rank == 0)	printf("Error: link id %u appears in the link parameters, but not in the topology data.\n(Hint: make sure your topology and parameter sources are correct.)\n", db_link_id[i]);
-                return 1;
-            }
-            system[curr_loc].params = v_get(globals->params_size);
-            for (j = 0; j < globals->disk_params; j++)
-                system[curr_loc].params.ve[j] = db_params[i][j];
-
-            if (custom_model)
-                custom_model->convert(system[curr_loc].params, globals->type, external);
-            else
-                ConvertParams(system[curr_loc].params, globals->type, external);
+            if (my_rank == 0)	printf("Error: link id %u appears in the link parameters, but not in the topology data.\n(Hint: make sure your topology and parameter sources are correct.)\n", db_link_id[i]);
+            return 1;
         }
-    }
-    else	//Just load the local parameters
-    {
-        for (i = 0; i < N; i++)
+        else
         {
-            curr_loc = find_link_by_idtoloc(db_link_id[i], id_to_loc, N);
-            if (curr_loc > N)
+            if (assignments[curr_loc] == my_rank || getting[curr_loc])
             {
-                if (my_rank == 0)	printf("Error: link id %u appears in the link parameters, but not in the topology data.\n(Hint: make sure your topology and parameter sources are correct.)\n", db_link_id[i]);
-                return 1;
-            }
-            else
-            {
-                if (assignments[curr_loc] == my_rank || getting[curr_loc])
-                {
-                    system[curr_loc].params = v_get(globals->params_size);
-                    for (j = 0; j < globals->disk_params; j++)
-                        system[curr_loc].params.ve[j] = db_params[i][j];
+                system[curr_loc].params = v_init(globals->params_size);
+                for (j = 0; j < globals->disk_params; j++)
+                    v_set(system[curr_loc].params, j, db_params[i][j]);
 
-                    if (custom_model)
-                        custom_model->convert(system[curr_loc].params, globals->type, external);
-                    else
-                        ConvertParams(system[curr_loc].params, globals->type, external);
-                }
+                if (custom_model)
+                    custom_model->convert(system[curr_loc].params, globals->type, external);
+                else
+                    ConvertParams(system[curr_loc].params, globals->type, external);
             }
         }
     }
@@ -559,7 +547,6 @@ int Load_Local_Parameters(Link* system, unsigned int N, unsigned int* my_sys, un
 //!!!! Perhaps the leaves info could be moved deeper? How about errors here? !!!!
 int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsigned int** my_sys, unsigned int* my_N, int** assignments, TransData** my_data, short int** getting, Model* custom_model)
 {
-    unsigned int i, j;
     Link *current, *prev;//**upstream_order = (Link**) malloc(N*sizeof(Link*));
 
 /*
@@ -569,7 +556,7 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     merge_sort(upstream_order,N,globals->area_idx);
 */
 
-//Perform a DFS to sort the leaves
+    //Perform a DFS to sort the leaves
     Link** stack = malloc(N * sizeof(Link*)); //Holds the index in system
     int stack_size = 0;
 
@@ -577,7 +564,7 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     unsigned int leaves_size = 0;
     unsigned short int num_parents;
 
-    for (j = 0; j < N; j++)	//!!!! Iterate over a list of roots? No need to sort then... !!!!
+    for (unsigned int j = 0; j < N; j++)	//!!!! Iterate over a list of roots? No need to sort then... !!!!
     {
         if (system[j].child == NULL)
         {
@@ -597,7 +584,7 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
                 else
                 {
                     //If current is not a leaf, replace it with its parents
-                    for (i = 0; i < num_parents; i++)
+                    for (unsigned int i = 0; i < num_parents; i++)
                     {
                         stack[stack_size - 1 + i] = current->parents[num_parents - 1 - i];
                         //stack[stack_size - 1 + i]->child = current;
@@ -615,7 +602,7 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     //for(i=0;i<N;i++)	system[i].distance = 0;
 
     //Calculate the distance and number of upstream links for each link
-    for (i = 0; i < leaves_size; i++)
+    for (unsigned int i = 0; i < leaves_size; i++)
     {
         prev = leaves[i];
         prev->distance = 1;
@@ -646,38 +633,46 @@ int Partition_Network(Link* system, unsigned int N, GlobalVars* GlobalVars, unsi
     free(leaves);
     //free(upstream_order);
 
+    //Allocate the link data according to the partition
+    for (unsigned int i = 0; i < N; i++)
+        if ((*assignments)[i] == my_rank || (*getting)[i])
+            system[i].my = malloc(sizeof(LinkData));
+
     return 0;
 }
 
 
 //Reads numerical error tolerances. Builds RK methods.
 //!!!! I'm not really sure how to handle specifying the dimension here. Should the rkd file allow a variable number of tols? !!!!
-int Build_RKData(Link* system, char rk_filename[], unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, GlobalVars* globals, ErrorData* errors, RKMethod*** AllMethods, unsigned int* nummethods)
+int Build_RKData(Link* system, char rk_filename[], unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, GlobalVars* globals, ErrorData* error_data, RKMethod** methods, unsigned int* num_methods)
 {
-    unsigned int i, j, size, *link_ids, *methods;
     FILE* rkdata;
     double *filedata_abs, *filedata_rel, *filedata_abs_dense, *filedata_rel_dense;
 
     //Build all the RKMethods
-    *nummethods = 4;
-    *AllMethods = malloc(*nummethods * sizeof(RKMethod*));
-    (*AllMethods)[0] = RKDense3_2();
-    (*AllMethods)[1] = TheRKDense4_3();
-    (*AllMethods)[2] = DOPRI5_dense();
-    (*AllMethods)[3] = RadauIIA3_dense();
-    globals->max_localorder = (*AllMethods)[0]->localorder;
-    globals->max_s = (*AllMethods)[0]->s;
-    for (i = 1; i < *nummethods; i++)
+    static RKMethod rk_methods[4];
+    Init_RKDense3_2(&rk_methods[0]);
+    Init_TheRKDense4_3(&rk_methods[1]);
+    Init_DOPRI5_dense(&rk_methods[2]);
+    Init_RadauIIA3_dense(&rk_methods[3]);
+
+    *methods = rk_methods;
+    *num_methods = 4;
+    
+    globals->max_localorder = rk_methods[0].localorder;
+    globals->max_rk_stages = rk_methods[0].s;
+    for (unsigned int i = 1; i < *num_methods; i++)
     {
-        globals->max_localorder = (globals->max_localorder < (*AllMethods)[i]->localorder) ? (*AllMethods)[i]->localorder : globals->max_localorder;
-        globals->max_s = (globals->max_s > (*AllMethods)[i]->s) ? globals->max_s : (*AllMethods)[i]->s;
+        globals->max_localorder = (globals->max_localorder < rk_methods[i].localorder) ? rk_methods[i].localorder : globals->max_localorder;
+        globals->max_rk_stages = (globals->max_rk_stages > rk_methods[i].s) ? globals->max_rk_stages : rk_methods[i].s;
         //!!!! Note: Use a +1 for Radau solver? !!!!
     }
 
     if (rk_filename[0] != '\0')
     {
-        link_ids = (unsigned int*)malloc(N * sizeof(unsigned int));
-        methods = (unsigned int*)malloc(N * sizeof(unsigned int));
+        unsigned int *link_ids = (unsigned int*)malloc(N * sizeof(unsigned int));
+        unsigned int *rk_methods_idx;
+        unsigned int num_states;
 
         if (my_rank == 0)
         {
@@ -694,85 +689,86 @@ int Build_RKData(Link* system, char rk_filename[], unsigned int N, unsigned int*
                 return 1;
             }
 
-            fscanf(rkdata, "%u %u", &i, &size);
-            if (i != N)
+            unsigned int n;
+            fscanf(rkdata, "%u %u", &n, &num_states);
+            if (n != N)
             {
-                printf("Error: the number of links in the rkd file differ from the number in the topology data (Got %u, expected %u).\n", i, N);
+                printf("Error: the number of links in the rkd file differ from the number in the topology data (Got %u, expected %u).\n", n, N);
                 return 1;
             }
 
-            MPI_Bcast(&size, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-            filedata_abs = (double*)malloc(N*size * sizeof(double));
-            filedata_rel = (double*)malloc(N*size * sizeof(double));
-            filedata_abs_dense = (double*)malloc(N*size * sizeof(double));
-            filedata_rel_dense = (double*)malloc(N*size * sizeof(double));
-            methods = (unsigned int*)malloc(size * sizeof(unsigned int));
+            MPI_Bcast(&num_states, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            filedata_abs = (double*)malloc(N*num_states * sizeof(double));
+            filedata_rel = (double*)malloc(N*num_states * sizeof(double));
+            filedata_abs_dense = (double*)malloc(N*num_states * sizeof(double));
+            filedata_rel_dense = (double*)malloc(N*num_states * sizeof(double));
+            rk_methods_idx = (unsigned int*)malloc(num_states * sizeof(unsigned int));
 
             //Read the file
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (fscanf(rkdata, "%u", &(link_ids[i])) == 0)
                 {
                     printf("Error reading .rkd file: Not enough links in file (expected %u, got %u).\n", N, i);
                     return 1;
                 }
-                for (j = 0; j < size; i++)	fscanf(rkdata, "%lf", &(filedata_abs[i*size + j]));
-                for (j = 0; j < size; i++)	fscanf(rkdata, "%lf", &(filedata_rel[i*size + j]));
-                for (j = 0; j < size; i++)	fscanf(rkdata, "%lf", &(filedata_abs_dense[i*size + j]));
-                for (j = 0; j < size; i++)	fscanf(rkdata, "%lf", &(filedata_rel_dense[i*size + j]));
-                fscanf(rkdata, "%u", &(methods[i]));
+                for (unsigned int j = 0; j < num_states; i++)	fscanf(rkdata, "%lf", &(filedata_abs[i*num_states + j]));
+                for (unsigned int j = 0; j < num_states; i++)	fscanf(rkdata, "%lf", &(filedata_rel[i*num_states + j]));
+                for (unsigned int j = 0; j < num_states; i++)	fscanf(rkdata, "%lf", &(filedata_abs_dense[i*num_states + j]));
+                for (unsigned int j = 0; j < num_states; i++)	fscanf(rkdata, "%lf", &(filedata_rel_dense[i*num_states + j]));
+                fscanf(rkdata, "%u", &(rk_methods_idx[i]));
             }
         }
         else
         {
-            MPI_Bcast(&size, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-            filedata_abs = (double*)malloc(N*size * sizeof(double));
-            filedata_rel = (double*)malloc(N*size * sizeof(double));
-            filedata_abs_dense = (double*)malloc(N*size * sizeof(double));
-            filedata_rel_dense = (double*)malloc(N*size * sizeof(double));
+            MPI_Bcast(&num_states, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+            filedata_abs = (double*)malloc(N*num_states * sizeof(double));
+            filedata_rel = (double*)malloc(N*num_states * sizeof(double));
+            filedata_abs_dense = (double*)malloc(N*num_states * sizeof(double));
+            filedata_rel_dense = (double*)malloc(N*num_states * sizeof(double));
+            rk_methods_idx = (unsigned int*)malloc(num_states * sizeof(unsigned int));
         }
 
         //Broadcast data
         MPI_Bcast(link_ids, N, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-        MPI_Bcast(filedata_abs, N*size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(filedata_rel, N*size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(filedata_abs_dense, N*size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Bcast(filedata_rel_dense, N*size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(filedata_abs, N*num_states, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(filedata_rel, N*num_states, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(filedata_abs_dense, N*num_states, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Bcast(filedata_rel_dense, N*num_states, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         MPI_Bcast(methods, N, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
         //Construct error data at each link
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             if (assignments[i] == my_rank || getting[i])
             {
-                system[i].errorinfo = (ErrorData*)malloc(sizeof(ErrorData));
-                system[i].errorinfo->abstol = v_get(size);
-                system[i].errorinfo->reltol = v_get(size);
-                system[i].errorinfo->abstol_dense = v_get(size);
-                system[i].errorinfo->reltol_dense = v_get(size);
-                system[i].errorinfo->facmax = errors->facmax;
-                system[i].errorinfo->facmin = errors->facmin;
-                system[i].errorinfo->fac = errors->fac;
+                system[i].my->error_data.abstol = v_init(num_states);
+                system[i].my->error_data.reltol = v_init(num_states);
+                system[i].my->error_data.abstol_dense = v_init(num_states);
+                system[i].my->error_data.reltol_dense = v_init(num_states);
+                system[i].my->error_data.facmax = error_data->facmax;
+                system[i].my->error_data.facmin = error_data->facmin;
+                system[i].my->error_data.fac = error_data->fac;
 
-                for (j = 0; j < size; j++)
+                for (unsigned int j = 0; j < num_states; j++)
                 {
-                    system[i].errorinfo->abstol.ve[j] = filedata_abs[i*size + j];
-                    system[i].errorinfo->reltol.ve[j] = filedata_rel[i*size + j];
-                    system[i].errorinfo->abstol_dense.ve[j] = filedata_abs_dense[i*size + j];
-                    system[i].errorinfo->reltol_dense.ve[j] = filedata_rel_dense[i*size + j];
+                    v_set(system[i].my->error_data.abstol, j, filedata_abs[i*num_states + j]);
+                    v_set(system[i].my->error_data.reltol, j, filedata_rel[i*num_states + j]);
+                    v_set(system[i].my->error_data.abstol_dense, j, filedata_abs_dense[i*num_states + j]);
+                    v_set(system[i].my->error_data.reltol_dense, j, filedata_rel_dense[i*num_states + j]);
                 }
-                system[i].method = (*AllMethods)[methods[i]];
+                system[i].method = &rk_methods[rk_methods_idx[i]];
             }
         }
     }
     else
     {
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             if (assignments[i] == my_rank || getting[i])
             {
-                system[i].errorinfo = errors;
-                system[i].method = (*AllMethods)[globals->method];
+                memcpy(&system[i].my->error_data, error_data, sizeof(ErrorData));
+                system[i].method = &rk_methods[globals->method];
             }
         }
     }
@@ -807,13 +803,13 @@ int Initialize_Model(Link* system, unsigned int N, unsigned int* my_sys, unsigne
             //Be sure the problem dimension and number of error tolerances are compatible
             if (assignments[i] == my_rank)
             {
-                smallest_dim = system[i].errorinfo->abstol.dim;
-                if (smallest_dim > system[i].errorinfo->reltol.dim)
-                    smallest_dim = system[i].errorinfo->reltol.dim;
-                if (smallest_dim > system[i].errorinfo->abstol_dense.dim)
-                    smallest_dim = system[i].errorinfo->abstol_dense.dim;
-                if (smallest_dim > system[i].errorinfo->reltol_dense.dim)
-                    smallest_dim = system[i].errorinfo->reltol_dense.dim;
+                smallest_dim = system[i].my->error_data.abstol.dim;
+                if (smallest_dim > system[i].my->error_data.reltol.dim)
+                    smallest_dim = system[i].my->error_data.reltol.dim;
+                if (smallest_dim > system[i].my->error_data.abstol_dense.dim)
+                    smallest_dim = system[i].my->error_data.abstol_dense.dim;
+                if (smallest_dim > system[i].my->error_data.reltol_dense.dim)
+                    smallest_dim = system[i].my->error_data.reltol_dense.dim;
                 if (globals->min_error_tolerances > smallest_dim)
                 {
                     printf("[%i] Error: link id %u does not have enough error tolerances (got %u, expected %u)\n", my_rank, system[i].ID, smallest_dim, globals->min_error_tolerances);
@@ -875,11 +871,11 @@ int Initialize_Model(Link* system, unsigned int N, unsigned int* my_sys, unsigne
 
 static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, Model* custom_model, void* external)
 {
-    unsigned int i, j, id, loc, no_ini_start, diff_start = 0, dim;
+    unsigned int id, loc, no_ini_start, diff_start = 0, dim;
     FILE* initdata = NULL;
     short int *who_needs = NULL;
     short int my_need;
-    VEC y_0 = v_get(0);
+    VEC y_0 = v_init(0);
 
     //Proc 0 reads the file and sends the data to the other procs
     if (my_rank == 0)
@@ -897,11 +893,12 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
             return 1;
         }
 
-        fscanf(initdata, "%*i %u %lf", &i, &(globals->t_0));	//Read model type, number of links, init time
+        unsigned int n;
+        fscanf(initdata, "%*i %u %lf", &n, &(globals->t_0));	//Read model type, number of links, init time
 
-        if (i != N)
+        if (n != N)
         {
-            printf("Error: the number of links in %s differs from the number in the topology data. (Got %u, expected %u)\n", globals->init_filename, i, N);
+            printf("Error: the number of links in %s differs from the number in the topology data. (Got %u, expected %u)\n", globals->init_filename, n, N);
             return 1;
         }
 
@@ -910,7 +907,7 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
 
         //Read the .ini file
         who_needs = (short int*)malloc(np * sizeof(short int));
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             //Send current location
             fscanf(initdata, "%u", &id);
@@ -941,9 +938,9 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
 
             //Read init data
             v_resize(&y_0, dim);
-            for (j = diff_start; j < no_ini_start; j++)
+            for (unsigned int j = diff_start; j < no_ini_start; j++)
             {
-                if (0 == fscanf(initdata, "%lf", &(y_0.ve[j])))
+                if (0 == fscanf(initdata, "%lf", v_ptr(y_0, j)))
                 {
                     printf("Error: not enough states in .ini file.\n");
                     return 1;
@@ -951,24 +948,29 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
             }
 
             //Send data to assigned proc and getting proc
-            if (assignments[loc] == my_rank || getting[loc])
+            //if (assignments[loc] == my_rank || getting[loc])
+            if (system[loc].my)
             {
                 if (custom_model)
                     system[loc].state = custom_model->initialize_eqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 else
                     system[loc].state = ReadInitData(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
 
             if (assignments[loc] != my_rank)
-                MPI_Send(&(y_0.ve[diff_start]), no_ini_start - diff_start, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
+                MPI_Send(v_ptr(y_0, diff_start), no_ini_start - diff_start, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
             if (!(getting[loc]))
             {
-                for (j = 0; j < np; j++)	if (who_needs[j] == 2)	break;
+                int j;
+                for (j = 0; j < np; j++)
+                    if (who_needs[j] == 2)
+                        break;
+                
                 if (j < np)
-                    MPI_Send(&(y_0.ve[diff_start]), no_ini_start - diff_start, MPI_DOUBLE, (int)j, 2, MPI_COMM_WORLD);
+                    MPI_Send(v_ptr(y_0, diff_start), no_ini_start - diff_start, MPI_DOUBLE, (int)j, 2, MPI_COMM_WORLD);
             }
         }
 
@@ -982,7 +984,7 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
         MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         who_needs = (short int*)malloc(np * sizeof(short int));
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             //Get link location
             MPI_Bcast(&loc, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -1005,14 +1007,14 @@ static int Load_Initial_Conditions_Ini(Link* system, unsigned int N, int* assign
                 }
 
                 v_resize(&y_0, dim);
-                MPI_Recv(&(y_0.ve[diff_start]), no_ini_start - diff_start, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(v_ptr(y_0, diff_start), no_ini_start - diff_start, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (custom_model)
                     system[loc].state = custom_model->initialize_eqs(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
                 else
                     system[loc].state = ReadInitData(globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam, y_0, globals->type, diff_start, no_ini_start, system[loc].user, external);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
         }
@@ -1031,7 +1033,7 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
     unsigned int i, j, loc, no_ini_start, diff_start = 0;
     FILE* initdata = NULL;
     short int *who_needs = NULL;
-    VEC y_0 = v_get(0);
+    VEC y_0 = v_init(0);
 
     //Proc 0 reads the initial conds, and send them to the other procs
     if (my_rank == 0)
@@ -1079,7 +1081,7 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
 
     //no_ini_start = system[loc].no_ini_start;
     //diff_start = system[loc].diff_start;
-    VEC y_0_backup = v_get(no_ini_start - diff_start);
+    VEC y_0_backup = v_init(no_ini_start - diff_start);
     //y_0_backup->dim = no_ini_start - diff_start;
     //y_0_backup.ve = (double*) calloc(y_0_backup->dim,sizeof(double));
 
@@ -1088,7 +1090,7 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
         //for(i=diff_start;i<no_ini_start;i++)
         for (i = 0; i < y_0_backup.dim; i++)
         {
-            if (fscanf(initdata, "%lf", &(y_0_backup.ve[i])) == 0)
+            if (fscanf(initdata, "%lf", v_ptr(y_0_backup, i)) == 0)
             {
                 printf("Error reading .uini file: Not enough initial states.\n");
                 return 1;
@@ -1099,9 +1101,9 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
         fclose(initdata);
     }
 
-    MPI_Bcast(y_0_backup.ve, no_ini_start - diff_start, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(y_0_backup.storage, no_ini_start - diff_start, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    //VEC* y_0_backup = v_get(y_0.dim);
+    //VEC* y_0_backup = v_init(y_0.dim);
     //v_copy(y_0,y_0_backup);
 
     //Store the data
@@ -1111,14 +1113,14 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
         {
             v_resize(&y_0, system[i].dim);
             for (j = diff_start; j < no_ini_start; j++)
-                y_0.ve[j] = y_0_backup.ve[j - diff_start];
+                v_set(y_0, j, v_at(y_0_backup, j - diff_start));
 
             if (custom_model)
                 system[i].state = custom_model->initialize_eqs(globals->global_params, system[i].params, system[i].qvs, system[i].dam, y_0, globals->type, diff_start, no_ini_start, system[i].user, external);
             else
                 system[i].state = ReadInitData(globals->global_params, system[i].params, system[i].qvs, system[i].dam, y_0, globals->type, diff_start, no_ini_start, system[i].user, external);
-            system[i].list = Create_List(y_0, globals->t_0, system[i].dim, system[i].num_dense, system[i].method->s, globals->iter_limit);
-            system[i].list->head->state = system[i].state;
+            Init_List(&system[i].my->list, y_0, globals->t_0, system[i].dim, system[i].num_dense, system[i].method->s, globals->iter_limit);
+            system[i].my->list.head->state = system[i].state;
             system[i].last_t = globals->t_0;
             //v_copy(y_0_backup,y_0);
         }
@@ -1133,11 +1135,11 @@ static int Load_Initial_Conditions_Uini(Link* system, unsigned int N, int* assig
 
 static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assignments, short int* getting, unsigned int** id_to_loc, GlobalVars* globals, ConnData* db_connections, Model* custom_model, void* external)
 {
-    unsigned int i, j, id, loc, dim;
+    unsigned int id, loc, dim;
     FILE* initdata = NULL;
     short int *who_needs = NULL;
     short int my_need;
-    VEC y_0 = v_get(0);
+    VEC y_0 = v_init(0);
 
     //Proc 0 reads the file and sends the data to the other procs
     if (my_rank == 0)
@@ -1155,11 +1157,12 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
             return 1;
         }
 
-        fscanf(initdata, "%*i %u %lf", &i, &(globals->t_0));	//Read model type, number of links, init time
+        unsigned int n;
+        fscanf(initdata, "%*i %u %lf", &n, &(globals->t_0));	//Read model type, number of links, init time
 
-        if (i != N)
+        if (n != N)
         {
-            printf("Error: the number of links in %s differs from the number in the topology data. (Got %u, expected %u)\n", globals->init_filename, i, N);
+            printf("Error: the number of links in %s differs from the number in the topology data. (Got %u, expected %u)\n", globals->init_filename, n, N);
             return 1;
         }
 
@@ -1168,7 +1171,7 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
 
         //Read the .rec file
         who_needs = (short int*)malloc(np * sizeof(short int));
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             //Send current location
             fscanf(initdata, "%u", &id);
@@ -1191,9 +1194,9 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
 
             //Read init data
             v_resize(&y_0, dim);
-            for (j = 0; j < y_0.dim; j++)
+            for (unsigned int j = 0; j < y_0.dim; j++)
             {
-                if (0 == fscanf(initdata, "%lf", &(y_0.ve[j])))
+                if (0 == fscanf(initdata, "%lf", v_ptr(y_0, j)))
                 {
                     printf("Error: not enough states in .rec file.\n");
                     return 1;
@@ -1205,18 +1208,23 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
             {
                 if (system[loc].state_check)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
 
             if (assignments[loc] != my_rank)
-                MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
+                MPI_Send_Vec(y_0, assignments[loc], 2, MPI_COMM_WORLD);
+
             if (!(getting[loc]))
             {
-                for (j = 0; j < np; j++)	if (who_needs[j] == 2)	break;
+                int j;
+                for (j = 0; j < np; j++)
+                    if (who_needs[j] == 2)
+                        break;
+
                 if (j < np)
-                    MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, (int)j, 2, MPI_COMM_WORLD);
+                    MPI_Send_Vec(y_0, (int)j, 2, MPI_COMM_WORLD);
             }
         }
 
@@ -1229,7 +1237,7 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
         //Get the initial time
         MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             //Get link location
             MPI_Bcast(&loc, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -1246,12 +1254,12 @@ static int Load_Initial_Conditions_Rec(Link* system, unsigned int N, int* assign
                     MPI_Send(&dim, 1, MPI_UNSIGNED, 0, 1, MPI_COMM_WORLD);
 
                 v_resize(&y_0, dim);
-                MPI_Recv(y_0.ve, y_0.dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv_Vec(y_0, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (system[loc].state_check)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
         }
@@ -1269,10 +1277,10 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
 
 #if defined(HAVE_POSTGRESQL)
 
-    unsigned int i, j, loc;
+    unsigned int loc;
     short int *who_needs = NULL;
     short int my_need;
-    VEC y_0 = v_get(0);
+    VEC y_0 = v_init(0);
     PGresult *res;
 
     //!!!! Note: this assumes the database is like a .rec, with each state given. It also !!!!
@@ -1300,16 +1308,16 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
         }
 
         //Get dim
-        y_0.dim = PQnfields(res) - 1;
-        y_0.ve = (double*)realloc(y_0.ve, y_0.dim * sizeof(double));
+        v_resize(&y_0, PQnfields(res) - 1);
         MPI_Bcast(&(y_0.dim), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         who_needs = (short int*)malloc(np * sizeof(short int));
 
         //Read data
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             loc = find_link_by_idtoloc(atoi(PQgetvalue(res, i, 0)), id_to_loc, N);
-            for (j = 0; j < y_0.dim; j++)	y_0.ve[j] = atof(PQgetvalue(res, i, j + 1));
+            for (unsigned int j = 0; j < y_0.dim; j++)
+                v_set(y_0, j, atof(PQgetvalue(res, i, j + 1)));
             MPI_Bcast(&loc, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
             //See who needs info about this link.
@@ -1322,17 +1330,22 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
             {
                 if (system[loc].state_check != NULL)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
 
             if (assignments[loc] != my_rank)
-                MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
+                MPI_Send_Vec(y_0, assignments[loc], 2, MPI_COMM_WORLD);
             if (!(getting[loc]))
             {
-                for (j = 0; j < np; j++)	if (who_needs[j] == 2)	break;
-                if (j < np)	MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, (int)j, 2, MPI_COMM_WORLD);
+                int j;
+                for (j = 0; j < np; j++)
+                    if (who_needs[j] == 2)
+                        break;
+                
+                if (j < np)
+                    MPI_Send_Vec(y_0, (int)j, 2, MPI_COMM_WORLD);
             }
         }
 
@@ -1345,10 +1358,11 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
     else
     {
         //Get dim
-        MPI_Bcast(&(y_0.dim), 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-        y_0.ve = (double*)realloc(y_0.ve, y_0.dim * sizeof(double));
+        unsigned int dim;
+        MPI_Bcast(&dim, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+        v_resize(&y_0, dim);
 
-        for (i = 0; i < N; i++)
+        for (unsigned int i = 0; i < N; i++)
         {
             //Get link location
             MPI_Bcast(&loc, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -1359,12 +1373,12 @@ static int Load_Initial_Conditions_Dbc(Link* system, unsigned int N, int* assign
 
             if (my_need)
             {
-                MPI_Recv(y_0.ve, y_0.dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv_Vec(y_0, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (system[loc].state_check != NULL)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
         }
@@ -1455,27 +1469,30 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
                 MPI_Recv(&dim, 1, MPI_UNSIGNED, assignments[loc], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             //Read init data
-            VEC y_0 = v_get(dim);
-            memcpy(y_0.ve, &data[i * dim], dim * sizeof(double));
+            VEC y_0 = v_init(dim);
+            v_assign(y_0, &data[i * dim], dim);
 
             //Send data to assigned proc and getting proc
             if (assignments[loc] == my_rank || getting[loc])
             {
                 if (system[loc].state_check)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
             }
 
             if (assignments[loc] != my_rank)
-                MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
+                MPI_Send_Vec(y_0, assignments[loc], 2, MPI_COMM_WORLD);
             if (!(getting[loc]))
             {
-                unsigned int j;
-                for (j = 0; j < np; j++)	if (who_needs[j] == 2)	break;
+                int j;
+                for (j = 0; j < np; j++)
+                    if (who_needs[j] == 2)
+                        break;
+                
                 if (j < np)
-                    MPI_Send(y_0.ve, y_0.dim, MPI_DOUBLE, (int)j, 2, MPI_COMM_WORLD);
+                    MPI_Send_Vec(y_0, (int)j, 2, MPI_COMM_WORLD);
             }
 
             //Clean up
@@ -1507,13 +1524,13 @@ static int Load_Initial_Conditions_H5(Link* system, unsigned int N, int* assignm
                 if (assignments[loc] == my_rank)
                     MPI_Send(&dim, 1, MPI_UNSIGNED, 0, 1, MPI_COMM_WORLD);
 
-                VEC y_0 = v_get(dim);
-                MPI_Recv(y_0.ve, y_0.dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                VEC y_0 = v_init(dim);
+                MPI_Recv_Vec(y_0, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (system[loc].state_check)
                     system[loc].state = system[loc].state_check(y_0, globals->global_params, system[loc].params, system[loc].qvs, system[loc].dam);
-                system[loc].list = Create_List(y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
-                system[loc].list->head->state = system[loc].state;
+                Init_List(&system[loc].my->list, y_0, globals->t_0, y_0.dim, system[loc].num_dense, system[loc].method->s, globals->iter_limit);
+                system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
 
                 //Clean up
@@ -1571,23 +1588,23 @@ int Load_Initial_Conditions(Link* system, unsigned int N, int* assignments, shor
 //Loads the forcing data specified in the global file.
 int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, GlobalVars* globals, Forcing* forcings, ConnData* db_connections)
 {
-    unsigned int i, j, l, m, limit, id, loc;
+    unsigned int limit, id, loc;
     FILE* forcingfile = NULL;
     double *buffer = NULL, univ_forcing_change_time[ASYNCH_MAX_NUM_FORCINGS];
     Link* current;
 
     //Reserve space for forcing data
-    for (i = 0; i < my_N; i++)
+    for (unsigned int i = 0; i < my_N; i++)
     {
         current = &system[my_sys[i]];
         current->forcing_buff = (ForcingData**)malloc(globals->num_forcings * sizeof(ForcingData*));
-        current->forcing_values = (double*)calloc(globals->num_forcings, sizeof(double));
+        current->forcing_values = v_init(globals->num_forcings);
         current->forcing_change_times = (double*)calloc(globals->num_forcings, sizeof(double));
         current->forcing_indices = (unsigned int*)malloc(globals->num_forcings * sizeof(double));
     }
 
     //Setup forcings. Read uniform forcing data and open .str files. Also initialize rainfall from database.
-    for (l = 0; l < globals->num_forcings; l++)
+    for (unsigned int l = 0; l < globals->num_forcings; l++)
     {
         forcings[l].maxtime = globals->t_0;
         forcings[l].iteration = 0;
@@ -1601,12 +1618,12 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             forcings[l].GetNextForcing = &NextForcingOther;
 
             //Setup buffers at each link
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
                     system[i].forcing_buff[l] = NULL;
-                    system[i].forcing_values[l] = 0.0;
+                    //v_set(system[i].forcing_values, l, 0.0;
                     system[i].forcing_change_times[l] = globals->maxtime + 1.0;
                 }
             }
@@ -1645,8 +1662,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             MPI_Bcast(&limit, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
             //Setup buffers at each link
-            for (i = 0; i < limit; i++)
+            for (unsigned int i = 0; i < limit; i++)
             {
+                unsigned int m;
                 if (my_rank == 0)
                 {
                     //Get location
@@ -1654,7 +1672,7 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     loc = find_link_by_idtoloc(id, id_to_loc, N);
                     if (loc >= N)
                     {
-                        printf("Error: forcing data provided for link id %u in forcing %u, but link id is not in the network.\n", m, l);
+                        printf("Error: forcing data provided for link id %u in forcing %u, but link id is not in the network.\n", id, l);
                         return 1;
                     }
 
@@ -1662,10 +1680,10 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     fscanf(forcingfile, "%i", &m);
                     m++;		//Increase this by one to add a "ceiling" term
                     buffer = (double*)realloc(buffer, 2 * m * sizeof(double));
-                    for (j = 0; j < m - 1; j++)
+                    for (unsigned int j = 0; j < m - 1; j++)
                         fscanf(forcingfile, "%lf %lf", &(buffer[2 * j]), &(buffer[2 * j + 1]));
-                    buffer[2 * j] = globals->maxtime + 3.0;
-                    buffer[2 * j + 1] = -1.0;
+                    buffer[2 * m] = globals->maxtime + 3.0;
+                    buffer[2 * m + 1] = -1.0;
 
                     //Send data
                     MPI_Bcast(&loc, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -1693,18 +1711,20 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         system[loc].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
                         system[loc].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
                         system[loc].forcing_buff[l]->nrows = m;
-                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
+                        for (unsigned int j = 0; j < m; j++)
+                            system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
                         //Read in the storm data for this link
-                        for (j = 0; j < m; j++)
+                        for (unsigned int j = 0; j < m; j++)
                         {
                             system[loc].forcing_buff[l]->data[j][0] = buffer[2 * j];
                             system[loc].forcing_buff[l]->data[j][1] = buffer[2 * j + 1];
                         }
 
                         double rainfall_buffer = system[loc].forcing_buff[l]->data[0][1];
-                        system[loc].forcing_values[l] = rainfall_buffer;
+                        v_set(system[loc].forcing_values, l, rainfall_buffer);
                         system[loc].forcing_indices[l] = 0;
+                        unsigned int j;
                         for (j = 1; j < system[loc].forcing_buff[l]->nrows; j++)
                         {
                             if (fabs(system[loc].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
@@ -1726,7 +1746,8 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         system[loc].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
                         system[loc].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
                         system[loc].forcing_buff[l]->nrows = m;
-                        for (j = 0; j < m; j++)	system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
+                        for (unsigned int j = 0; j < m; j++)
+                            system[loc].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
                         system[loc].forcing_buff[l]->data[0][0] = globals->t_0;
                         system[loc].forcing_buff[l]->data[0][1] = 0.0;
@@ -1734,8 +1755,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         system[loc].forcing_buff[l]->data[1][1] = -1.0;
 
                         double rainfall_buffer = system[loc].forcing_buff[l]->data[0][1];
-                        system[loc].forcing_values[l] = rainfall_buffer;
+                        v_set(system[loc].forcing_values, l, rainfall_buffer);
                         system[loc].forcing_indices[l] = 0;
+                        unsigned int j;
                         for (j = 1; j < system[loc].forcing_buff[l]->nrows; j++)
                         {
                             if (fabs(system[loc].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
@@ -1753,16 +1775,16 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             //Allocate space for links without a reservoir
             if (globals->res_flag && l == globals->res_forcing_idx)
             {
-                for (i = 0; i < N; i++)
+                for (unsigned int i = 0; i < N; i++)
                 {
                     if (assignments[i] == my_rank && !(system[i].forcing_buff[l]))
                     {
-                        m = 2;	//Init value (assumed 0.0)
+                        unsigned int m = 2;	//Init value (assumed 0.0)
 
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
                         system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
                         system[i].forcing_buff[l]->nrows = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
+                        for (unsigned int j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)malloc(2 * sizeof(double));
 
                         system[i].forcing_buff[l]->data[0][0] = globals->t_0;
                         system[i].forcing_buff[l]->data[0][1] = 0.0;
@@ -1770,8 +1792,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                         system[i].forcing_buff[l]->data[1][1] = -1.0;
 
                         double rainfall_buffer = system[i].forcing_buff[l]->data[0][1];
-                        system[i].forcing_values[l] = rainfall_buffer;
+                        v_set(system[i].forcing_values, l, rainfall_buffer);
                         system[i].forcing_indices[l] = 0;
+                        unsigned int j;
                         for (j = 1; j < system[i].forcing_buff[l]->nrows; j++)
                         {
                             if (fabs(system[i].forcing_buff[l]->data[j][1] - rainfall_buffer) > 1e-8)
@@ -1797,11 +1820,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
-            for (i = 0; i < N; i++)
-            {
+            for (unsigned int i = 0; i < N; i++)
                 if (assignments[i] == my_rank)
                     system[i].forcing_buff[l] = NULL;
-            }
         }
         else if (forcings[l].flag == 6)	//GZ binary files
         {
@@ -1811,11 +1832,9 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
-            for (i = 0; i < N; i++)
-            {
+            for (unsigned int i = 0; i < N; i++)
                 if (assignments[i] == my_rank)
                     system[i].forcing_buff[l] = NULL;
-            }
         }
         else if (forcings[l].flag == 8)	//Grid cell based files
         {
@@ -1825,11 +1844,10 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
 
             //Setup buffers at each link
             //!!!! This should really be improved... !!!!
+            unsigned int i;
             for (i = 0; i < N; i++)
-            {
                 if (assignments[i] == my_rank)
                     system[i].forcing_buff[l] = NULL;
-            }
 
             //Read the index file
             if (my_rank == 0)
@@ -1841,10 +1859,10 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     return 1;
                 }
 
-                char* tempspace1 = (char*)malloc(1024 * sizeof(char));
-                char* tempspace2 = (char*)malloc(1024 * sizeof(char));
-                forcings[l].lookup_filename = (char*)malloc(1024 * sizeof(char));
-                forcings[l].fileident = (char*)malloc(1024 * sizeof(char));
+                char tempspace1[ASYNCH_MAX_PATH_LENGTH];
+                char tempspace2[ASYNCH_MAX_PATH_LENGTH];
+                forcings[l].lookup_filename = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
+                forcings[l].fileident = (char*)malloc(ASYNCH_MAX_PATH_LENGTH * sizeof(char));
                 FindPath(forcings[l].filename, forcings[l].fileident);
                 unsigned int length = (unsigned int)strlen(forcings[l].fileident);
                 strcpy(forcings[l].lookup_filename, forcings[l].fileident);
@@ -1874,24 +1892,25 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
 
                 while (!feof(forcingfile))	//Count the number of links in each grid cell
                 {
+                    unsigned int j;
                     if (!fscanf(forcingfile, "%*u %u", &j))	break;
                     (forcings[l].num_links_in_grid[j])++;
                 }
 
                 rewind(forcingfile);
-                for (i = 0; i < forcings[l].num_cells; i++)
+                for (unsigned int i = 0; i < forcings[l].num_cells; i++)
                     forcings[l].grid_to_linkid[i] = (unsigned int*)malloc(forcings[l].num_links_in_grid[i] * sizeof(unsigned int));
                 unsigned int* counters = (unsigned int*)calloc(forcings[l].num_cells, sizeof(unsigned int));
 
                 while (!feof(forcingfile))	//Read in the link ids
                 {
+                    unsigned int j;
                     if (!fscanf(forcingfile, "%u %u", &id, &j))	break;
                     forcings[l].grid_to_linkid[j][counters[j]++] = id;
                 }
 
                 fclose(forcingfile);
                 free(counters);
-                free(tempspace1);
 
                 //Check if a grid cell file actually exists
                 for (i = forcings[l].first_file; i < forcings[l].last_file; i++)
@@ -1906,8 +1925,6 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 }
                 if (i == forcings[l].last_file)
                     printf("Warning: No forcing files found at %s for forcing %u. Be sure this is the correct directory.\n", forcings[l].fileident, l);
-
-                free(tempspace2);
             }
 
             //Broadcast data
@@ -1936,7 +1953,7 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             for (i = 0; i < forcings[l].num_cells; i++)
             {
                 drop = 0;
-                for (j = 0; j < forcings[l].num_links_in_grid[i]; j++)
+                for (unsigned int j = 0; j < forcings[l].num_links_in_grid[i]; j++)
                 {
                     if (assignments[forcings[l].grid_to_linkid[i][j]] != my_rank)
                         drop++;
@@ -1993,30 +2010,32 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 forcings[l].next_timestamp = forcings[l].good_timestamp;	//!!!! Could probably do something similar for flag 3 !!!!
 
             //Allocate space
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
                     if (!(globals->res_flag) || !(l == globals->res_forcing_idx) || system[i].res)
                     {
-                        m = forcings[l].increment + 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
+                        unsigned int m = forcings[l].increment + 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
                         system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
                         system[i].forcing_buff[l]->nrows = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
+                        for (unsigned int j = 0; j < m; j++)
+                            system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
                         system[i].forcing_buff[l]->data[0][0] = globals->t_0;
-                        system[i].forcing_values[l] = 0.0;
+                        v_set(system[i].forcing_values, l, 0.0);
                         system[i].forcing_change_times[l] = fabs(globals->t_0 + globals->maxtime) + 10.0;	//Just pick something away from t_0, and positive
                     }
                     else	//Reservoir, so allocate only a little memory
                     {
-                        m = 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
+                        unsigned int m = 4;	//+1 for init, +1 for ceiling, +2 for when init time doesn't line up with file_time
                         system[i].forcing_buff[l] = (ForcingData*)malloc(sizeof(ForcingData));
                         system[i].forcing_buff[l]->data = (double**)malloc(m * sizeof(double*));
                         system[i].forcing_buff[l]->nrows = m;
-                        for (j = 0; j < m; j++)	system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
+                        for (unsigned int j = 0; j < m; j++)
+                            system[i].forcing_buff[l]->data[j] = (double*)calloc(2, sizeof(double));
                         system[i].forcing_buff[l]->data[0][0] = globals->t_0;
-                        system[i].forcing_values[l] = 0.0;
+                        v_set(system[i].forcing_values, l, 0.0);
                         system[i].forcing_change_times[l] = fabs(globals->t_0 + globals->maxtime) + 10.0;	//Just pick something away from t_0, and positive
                     }
                 }
@@ -2032,6 +2051,8 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
         }
         else if (forcings[l].flag == 4)	//.ustr
         {
+            unsigned int m;
+
             //Set routines
             forcings[l].GetPasses = &PassesOther;
             forcings[l].GetNextForcing = &NextForcingOther;
@@ -2052,16 +2073,16 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                     return 1;
                 }
 
-                //Read the number of times for the rain data for this link
+                //Read the number of times for the rain data for this link                
                 fscanf(forcingfile, "%i", &m);
                 m++;		//Increase this by one to add a "ceiling" term
                 buffer = (double*)realloc(buffer, 2 * m * sizeof(double));
 
                 //Read the data
-                for (j = 0; j < m - 1; j++)
+                for (unsigned int j = 0; j < m - 1; j++)
                     fscanf(forcingfile, "%lf %lf", &(buffer[2 * j]), &(buffer[2 * j + 1]));
-                buffer[2 * j] = globals->maxtime + 3.0;
-                buffer[2 * j + 1] = -1.0;
+                buffer[2 * m] = globals->maxtime + 3.0;
+                buffer[2 * m + 1] = -1.0;
 
                 fclose(forcingfile);
             }
@@ -2075,15 +2096,17 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             forcings[l].GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
             forcings[l].GlobalForcing->data = (double**)malloc(m * sizeof(double*));
             forcings[l].GlobalForcing->nrows = m;
-            for (j = 0; j < m; j++)	forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
+            for (unsigned int j = 0; j < m; j++)
+                forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
 
-            for (j = 0; j < m; j++)
+            for (unsigned int j = 0; j < m; j++)
             {
                 forcings[l].GlobalForcing->data[j][0] = buffer[2 * j];
                 forcings[l].GlobalForcing->data[j][1] = buffer[2 * j + 1];
             }
 
             double rainfall_buffer = forcings[l].GlobalForcing->data[0][1];
+            unsigned int j;
             for (j = 1; j < forcings[l].GlobalForcing->nrows; j++)
             {
                 if (rainfall_buffer != forcings[l].GlobalForcing->data[j][1])
@@ -2096,12 +2119,12 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 univ_forcing_change_time[l] = forcings[l].GlobalForcing->data[j - 1][0];
 
             //Load the links
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
                     system[i].forcing_buff[l] = forcings[l].GlobalForcing;
-                    system[i].forcing_values[l] = system[i].forcing_buff[l]->data[0][1];
+                    v_set(system[i].forcing_values, l, system[i].forcing_buff[l]->data[0][1]);
                     system[i].forcing_change_times[l] = univ_forcing_change_time[l];
                     system[i].forcing_indices[l] = 0;
                 }
@@ -2113,7 +2136,7 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             forcings[l].GetPasses = &PassesRecurring;
             forcings[l].GetNextForcing = &NextForcingRecurring;
 
-            int num_months = 12;
+            unsigned int num_months = 12;
             buffer = (double*)realloc(buffer, num_months * sizeof(double));
 
             //Read monthly file
@@ -2133,7 +2156,8 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
                 }
 
                 //Read the data
-                for (j = 0; j < num_months; j++)	fscanf(forcingfile, "%lf", &(buffer[j]));
+                for (unsigned int j = 0; j < num_months; j++)
+                    fscanf(forcingfile, "%lf", &(buffer[j]));
 
                 fclose(forcingfile);
             }
@@ -2144,8 +2168,10 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             forcings[l].GlobalForcing = (ForcingData*)malloc(sizeof(ForcingData));
             forcings[l].GlobalForcing->data = (double**)malloc((num_months + 1) * sizeof(double*));
             forcings[l].GlobalForcing->nrows = num_months + 1;
-            for (j = 0; j < num_months + 1; j++)	forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
-            for (j = 0; j < num_months; j++)	forcings[l].GlobalForcing->data[j][1] = buffer[j];
+            for (unsigned int j = 0; j < num_months + 1; j++)
+                forcings[l].GlobalForcing->data[j] = (double*)malloc(2 * sizeof(double));
+            for (unsigned int j = 0; j < num_months; j++)
+                forcings[l].GlobalForcing->data[j][1] = buffer[j];
             forcings[l].GlobalForcing->data[num_months][1] = -1.0;
 
             //Find the starting month, and use the next month for the change time
@@ -2161,12 +2187,12 @@ int Load_Forcings(Link* system, unsigned int N, unsigned int* my_sys, unsigned i
             univ_forcing_change_time[l] = difftime(next_month, forcings[l].first_file) / 60.0;
 
             //Load the links
-            for (i = 0; i < N; i++)
+            for (unsigned int i = 0; i < N; i++)
             {
                 if (assignments[i] == my_rank)
                 {
                     system[i].forcing_buff[l] = forcings[l].GlobalForcing;
-                    system[i].forcing_values[l] = system[i].forcing_buff[l]->data[0][1];
+                    v_set(system[i].forcing_values, l, system[i].forcing_buff[l]->data[0][1]);
                     system[i].forcing_change_times[l] = univ_forcing_change_time[l];
                     system[i].forcing_indices[l] = 0;
                 }
@@ -2261,11 +2287,11 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
                 //Either store the parameters or send them
                 if (my_rank == assignments[m] || my_rank == needs[m])
                 {
-                    system[m].params.ve = (double*)realloc(system[m].params.ve, globals->dam_params_size * sizeof(double));
-                    system[m].params.dim = globals->dam_params_size;
+                    v_resize(&system[m].params, globals->dam_params_size);
 
                     for (j = globals->params_size; j < globals->dam_params_size; j++)
-                        system[m].params.ve[j] = buffer[j - globals->params_size];
+                        v_set(system[m].params, j, buffer[j - globals->params_size]);
+                        
                     system[m].dam = 1;
                 }
 
@@ -2290,11 +2316,10 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
                 {
                     MPI_Recv(buffer, size, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-                    system[m].params.ve = (double*)realloc(system[m].params.ve, globals->dam_params_size * sizeof(double));
-                    system[m].params.dim = globals->dam_params_size;
+                    v_resize(&system[m].params, globals->dam_params_size);
 
                     for (j = globals->params_size; j < globals->dam_params_size; j++)
-                        system[m].params.ve[j] = buffer[j - globals->params_size];
+                        v_set(system[m].params, j, buffer[j - globals->params_size]);
                     system[m].dam = 1;
                 }
             }
@@ -2306,7 +2331,7 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
         //Set error tolerance
         if (globals->rkd_flag == 0)
         {
-            globals->discont_tol = errors->abstol.ve[0];
+            globals->discont_tol = v_at(errors->abstol, 0);
             if (globals->discont_tol < 1e-12 && my_rank == 0)
                 printf("Warning: Discontinuity tolerance has been set to %e.\n", globals->discont_tol);
         }
@@ -2433,7 +2458,7 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
         //Set error tolerance
         if (globals->rkd_flag == 0)
         {
-            globals->discont_tol = errors->abstol.ve[0];
+            globals->discont_tol = v_at(errors->abstol, 0);
             if (globals->discont_tol < 1e-12 && my_rank == 0)
                 printf("Warning: Discontinuity tolerance has been set to %e.\n", globals->discont_tol);
         }
@@ -2500,7 +2525,7 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
                     MPI_Gather(&mine, 1, MPI_SHORT, procs_sending_to, 1, MPI_SHORT, 0, MPI_COMM_WORLD);
 
                     //Send the data to whoever needs it
-                    for (j = 1; j < np; j++)
+                    for (int j = 1; j < np; j++)
                     {
                         if (procs_sending_to[j])
                         {
@@ -2569,7 +2594,7 @@ int Load_Dams(Link* system, unsigned int N, unsigned int* my_sys, unsigned int m
         //Set error tolerance
         if (globals->rkd_flag == 0)
         {
-            globals->discont_tol = errors->abstol.ve[0];
+            globals->discont_tol = v_at(errors->abstol, 0);
             if (globals->discont_tol < 1e-12 && my_rank == 0)
                 printf("Warning: Discontinuity tolerance has been set to %e.\n", globals->discont_tol);
         }
@@ -2591,7 +2616,7 @@ MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         //Set error tolerance
         if (globals->rkd_flag == 0)
         {
-            globals->discont_tol = errors->abstol.ve[0];
+            globals->discont_tol = v_at(errors->abstol, 0);
             if (globals->discont_tol < 1e-12 && my_rank == 0)
                 printf("Warning: Discontinuity tolerance has been set to %e.\n", globals->discont_tol);
         }
@@ -2644,7 +2669,7 @@ MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 
 //Calculates an estimate for the initial stepsizes at each link.
 //Returns 0 if initial conditions set. 1 if a forcing is not ready.
-int CalculateInitialStepSizes(Link* system, unsigned int* my_sys, unsigned int my_N, GlobalVars* globals, TempStorage* workspace, short int watch_forcings)
+int CalculateInitialStepSizes(Link* system, unsigned int* my_sys, unsigned int my_N, GlobalVars* globals, Workspace* workspace, short int watch_forcings)
 {
     unsigned int i, j;
 
@@ -2711,7 +2736,7 @@ int BuildSaveLists(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
                 if (globals->print_time > 0.0)
                     current->print_time = globals->print_time;
                 else
-                    current->print_time = pow(current->params.ve[globals->area_idx] * 0.1, 0.5);
+                    current->print_time = sqrt(v_at(current->params, globals->area_idx) * 0.1);
             }
         }
     }
@@ -2761,20 +2786,20 @@ int BuildSaveLists(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
 }
 
 //Finalizes the system for calculations. Basically, lots of small miscellaneous initializations are made.
-int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, unsigned int* assignments, short int* getting, unsigned int** id_to_loc, TransData* my_data, GlobalVars* globals, ConnData* db_connections, TempStorage** workspace)
+int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned int my_N, unsigned int* assignments, short int* getting, unsigned int** id_to_loc, TransData* my_data, GlobalVars* globals, ConnData* db_connections, Workspace* workspace)
 {
     unsigned int i, j;
     int ii;
     Link* current;
 
     //Initialize workspace
-    *workspace = Create_Workspace(globals->max_dim, globals->max_s, globals->max_parents);
+    Create_Workspace(workspace, globals->max_dim, globals->max_rk_stages, globals->max_parents);
 
     //Need space for nodes, number of iterations, discontinuities
-    //Data: ( size(double)*(max_s*max_dim + max_dim + time)*# steps to transfer + size(int)(for stage)*# steps to transfer + size(int)*(location + # steps to transfer) ) * # of sending links
+    //Data: ( size(double)*(max_rk_stages*max_dim + max_dim + time)*# steps to transfer + size(int)(for stage)*# steps to transfer + size(int)*(location + # steps to transfer) ) * # of sending links
     //Upstream: + size(int) * (location + # of iterations) * # of receiving links
     //Discontinuities: + (size(int) + size(double)*discont_size + size(int)*discont_size) * # of sending links
-    //unsigned int bytes1 = ( (sizeof(double)*(globals->max_s*2 + 2 + 1) + sizeof(int) )*globals->max_transfer_steps + sizeof(int)*2);
+    //unsigned int bytes1 = ( (sizeof(double)*(globals->max_rk_stages*2 + 2 + 1) + sizeof(int) )*globals->max_transfer_steps + sizeof(int)*2);
     unsigned int bytes2 = 2 * sizeof(int);
     unsigned int bytes3 = sizeof(int) + (sizeof(int) + sizeof(double))*globals->discont_size;
     for (ii = 0; ii < np; ii++)
@@ -2826,13 +2851,15 @@ int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
             system[i].peak_time = globals->t_0;
             //system[i].save_flag = 0;
             //system[i].peak_flag = 0;
-            system[i].peak_value = v_get(system[i].dim);
-            v_copy(system[i].list->head->y_approx, system[i].peak_value);
+            system[i].peak_value = v_init(system[i].dim);
+            v_copy(system[i].my->list.head->y_approx, system[i].peak_value);
             if (system[i].num_parents)	system[i].ready = 0;
             else				system[i].ready = 1;
             system[i].iters_removed = 0;
             system[i].steps_on_diff_proc = 1;	//Note: This won't be used if link isn't stored on another proc
             system[i].rejected = 0;
+
+#if defined (ASYNCH_HAVE_IMPLICIT_SOLVER)
             system[i].last_eta = 1e10;
             system[i].compute_J = 1;
             system[i].compute_LU = 1;
@@ -2843,8 +2870,8 @@ int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
                 system[i].CoefMat = m_get(globals->max_s*system[i].dim, globals->max_s*system[i].dim);
                 system[i].Z_i = malloc(globals->max_s * sizeof(VEC*));
                 for (j = 0; j < globals->max_s; j++)
-                    system[i].Z_i[j] = v_get(system[i].dim);
-                system[i].sol_diff = v_get(system[i].dim);
+                    system[i].Z_i[j] = v_init(system[i].dim);
+                system[i].sol_diff = v_init(system[i].dim);
                 system[i].h_old = -1.0;
                 system[i].value_old = -1.0;
             }
@@ -2853,24 +2880,26 @@ int FinalizeSystem(Link* system, unsigned int N, unsigned int* my_sys, unsigned 
                 system[i].JMatrix = m_get(0, 0);
                 system[i].CoefMat = m_get(0, 0);
                 system[i].Z_i = NULL;
-                system[i].sol_diff = v_get(0);
+                system[i].sol_diff = v_init(0);
             }
-
+#endif
         }
         else	//If link not assigned to this process, and not receiving any information from this link.
         {
             system[i].method = NULL;
-            system[i].list = NULL;
-            system[i].peak_value = v_get(0);
-            system[i].params = v_get(0);
+            system[i].peak_value = v_init(0);
+            system[i].params = v_init(0);
 
             //NULL out the unneeded data
-            system[i].f = NULL;
-            system[i].Jacobian = NULL;
+            system[i].differential = NULL;
+            system[i].jacobian = NULL;
+
+#if defined (ASYNCH_HAVE_IMPLICIT_SOLVER)
             system[i].JMatrix = m_get(0, 0);
             system[i].CoefMat = m_get(0, 0);
             system[i].Z_i = NULL;
-            system[i].sol_diff = v_get(0);
+            system[i].sol_diff = v_init(0);
+#endif
         }
     }
 
@@ -2958,10 +2987,10 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
     valsread = sscanf(line_buffer, "%u%n", &i, &total);
     if (ReadLineError(valsread, 1, "number of global parameters"))	return NULL;
-    globals->global_params = v_get(i);
+    globals->global_params = v_init(i);
     for (i = 0; i < globals->global_params.dim; i++)
     {
-        valsread = sscanf(&(line_buffer[total]), "%lf%n", &(globals->global_params.ve[i]), &written);
+        valsread = sscanf(&(line_buffer[total]), "%lf%n", v_ptr(globals->global_params, i), &written);
         if (ReadLineError(valsread, 1, "a global parameter"))	return NULL;
         total += written;
     }
@@ -3384,7 +3413,7 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     if (ReadLineError(valsread, 1, "error tolerance flag"))	return NULL;
 
     //Set some parameters
-    globals->max_s = 0;
+    globals->max_rk_stages = 0;
     globals->max_parents = 0;
 
     if (globals->rkd_flag == 0)	//Error data is found in the universal file
@@ -3408,43 +3437,43 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
         } while (valsread > 0);
 
         //Reserve memory
-        (*errors)->abstol = v_get(error_dim);
-        (*errors)->reltol = v_get(error_dim);
-        (*errors)->abstol_dense = v_get(error_dim);
-        (*errors)->reltol_dense = v_get(error_dim);
+        (*errors)->abstol = v_init(error_dim);
+        (*errors)->reltol = v_init(error_dim);
+        (*errors)->abstol_dense = v_init(error_dim);
+        (*errors)->reltol_dense = v_init(error_dim);
 
         //ReadLineFromTextFile(globalfile,line_buffer,line_buffer_len,string_size);
         total = 0;
-        for (i = 0; i < error_dim; i++)	//Note: Don't read the line from disk again
+        for (int i = 0; i < error_dim; i++)	//Note: Don't read the line from disk again
         {
-            valsread = sscanf(&(line_buffer[total]), "%lf%n", &((*errors)->abstol.ve[i]), &written);
+            valsread = sscanf(&(line_buffer[total]), "%lf%n", v_ptr((*errors)->abstol, i), &written);
             //if(ReadLineError(valsread,1,"an abstol component"))	return NULL;
             total += written;
         }
 
         ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
         total = 0;
-        for (i = 0; i < error_dim; i++)
+        for (int i = 0; i < error_dim; i++)
         {
-            valsread = sscanf(&(line_buffer[total]), "%lf%n", &((*errors)->reltol.ve[i]), &written);
+            valsread = sscanf(&(line_buffer[total]), "%lf%n", v_ptr((*errors)->reltol, i), &written);
             if (ReadLineError(valsread, 1, "a reltol component"))	return NULL;
             total += written;
         }
 
         ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
         total = 0;
-        for (i = 0; i < error_dim; i++)
+        for (int i = 0; i < error_dim; i++)
         {
-            valsread = sscanf((&line_buffer[total]), "%lf%n", &((*errors)->abstol_dense.ve[i]), &written);
+            valsread = sscanf((&line_buffer[total]), "%lf%n", v_ptr((*errors)->abstol_dense, i), &written);
             if (ReadLineError(valsread, 1, "an abstol dense output component"))	return NULL;
             total += written;
         }
 
         ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
         total = 0;
-        for (i = 0; i < error_dim; i++)
+        for (int i = 0; i < error_dim; i++)
         {
-            valsread = sscanf(&(line_buffer[total]), "%lf%n", &((*errors)->reltol_dense.ve[i]), &written);
+            valsread = sscanf(&(line_buffer[total]), "%lf%n", v_ptr((*errors)->reltol_dense, i), &written);
             if (ReadLineError(valsread, 1, "a reltol dense output component"))	return NULL;
             total += written;
         }
@@ -3452,10 +3481,10 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
     else if (globals->rkd_flag == 1)	//Error data is in an .rkd file
     {
         globals->method = -1;
-        (*errors)->abstol = v_get(0);
-        (*errors)->reltol = v_get(0);
-        (*errors)->abstol_dense = v_get(0);
-        (*errors)->reltol_dense = v_get(0);
+        (*errors)->abstol = v_init(0);
+        (*errors)->reltol = v_init(0);
+        (*errors)->abstol_dense = v_init(0);
+        (*errors)->reltol_dense = v_init(0);
 
         //ReadLineFromTextFile(globalfile,line_buffer,line_buffer_len);
         valsread = sscanf(line_buffer, "%*i %s", rkdfilename);
@@ -3491,6 +3520,127 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData** errors, Forcing*
         fclose(globalfile);
 
     return globals;
+}
+
+//Reads a .dbc file and creates a corresponding database connection.
+//This does NOT connect to the database.
+//Returns NULL if there was an error.
+void ReadDBC(char* filename, ConnData* const conninfo)
+{
+    bool res = true;
+    unsigned int i = 0, j = 0;
+    char connstring[ASYNCH_MAX_CONNSTRING_LENGTH];
+    char c;
+
+    //if(my_rank == 0)
+    //{
+    FILE* input = fopen(filename, "r");
+
+    if (!input)
+    {
+        printf("Error opening .dbc file %s.\n", filename);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+    if (CheckWinFormat(input))
+    {
+        printf("Error: File %s appears to be in Windows format. Try converting to unix format using 'dos2unix' at the command line.\n", filename);
+        fclose(input);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+
+    //Read connection information
+    //Currently, this expects 4 things like:
+    fgets(connstring, ASYNCH_MAX_CONNSTRING_LENGTH, input);
+    ConnData_Init(conninfo, connstring);
+    if (!conninfo)
+    {
+        fclose(input);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+
+    //Get number of queries
+    if (fscanf(input, "%u", &(conninfo->num_queries)) == EOF)
+    {
+        printf("[%i]: Error: failed to parse file.\n", my_rank);
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
+    for (i = 0; i < conninfo->num_queries; i++)
+        conninfo->queries[i] = (char*)malloc(ASYNCH_MAX_QUERY_LENGTH * sizeof(char));
+
+    //Get queries. They are delineated by a ;
+    for (j = 0; j < conninfo->num_queries; j++)
+    {
+        //Get rid of whitespace
+        c = fgetc(input);
+        while (c != EOF && (c == ' ' || c == '\n' || c == '\t'))	c = fgetc(input);
+        if (c == EOF)
+        {
+            printf("[%i]: Warning: did not see %u queries in %s.\n", my_rank, conninfo->num_queries, filename);
+            break;
+        }
+
+        //Read in query
+        for (i = 0; i < ASYNCH_MAX_QUERY_LENGTH - 2 && c != ';' && c != EOF; i++)
+        {
+            conninfo->queries[j][i] = c;
+            c = fgetc(input);
+        }
+
+        //Check for problems and put stuff on the end
+        if (i == ASYNCH_MAX_QUERY_LENGTH)
+            printf("[%i]: Warning: query %u is too long in %s.\n", my_rank, j, filename);
+        else if (c == EOF)
+        {
+            printf("[%i]: Warning: did not see %u queries in %s.\n", my_rank, conninfo->num_queries, filename);
+            break;
+        }
+        else
+        {
+            conninfo->queries[j][i] = ';';
+            conninfo->queries[j][i + 1] = '\0';
+        }
+    }
+
+    fclose(input);
+
+    ////Get string length for other procs
+    //j = (unsigned int) strlen(connstring) + 1;
+    //}
+
+    ////Check if an error occurred
+    //finish:
+    //MPI_Bcast(&has_error,1,MPI_C_BOOL,0,MPI_COMM_WORLD);
+
+    ////Transfer info from .dbc file
+    //if(!errorcode)
+    //{
+    //	MPI_Bcast(&j,1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
+    //	MPI_Bcast(connstring,j,MPI_CHAR,0,MPI_COMM_WORLD);
+    //	if(my_rank != 0)
+    //		ConnData_Init(conninfo, connstring);
+    //	MPI_Bcast(&(conninfo->num_queries),1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
+    //	if(my_rank == 0)
+    //	{
+    //		for(i=0;i<conninfo->num_queries;i++)
+    //		{
+    //			j = (unsigned int) strlen(conninfo->queries[i]) + 1;
+    //			MPI_Bcast(&j,1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
+    //			MPI_Bcast(conninfo->queries[i],j,MPI_CHAR,0,MPI_COMM_WORLD);
+    //		}
+    //	}
+    //	else
+    //	{
+    //		conninfo->queries = (char**) malloc(conninfo->num_queries*sizeof(char*));
+    //		for(i=0;i<conninfo->num_queries;i++)
+    //		{
+    //			conninfo->queries[i] = (char*) malloc(ASYNCH_MAX_QUERY_LENGTH*sizeof(char));
+    //			MPI_Bcast(&j,1,MPI_UNSIGNED,0,MPI_COMM_WORLD);
+    //			MPI_Bcast(conninfo->queries[i],j,MPI_CHAR,0,MPI_COMM_WORLD);
+    //		}
+    //	}
+    //}
+
+
 }
 
 //Reads in the contents of a .sav file.
@@ -3661,7 +3811,7 @@ int AttachParameters(char* filename, unsigned int max_size, VEC v, unsigned int 
 
     for (i = 0; i < v.dim; i++)
     {
-        sprintf(buffer, "_%.4e%n", v.ve[i], &count);
+        sprintf(buffer, "_%.4e%n", v_at(v, i), &count);
         total += count;
         if (count + 1 > string_size)	return 1;
         if (total + 1 > max_size)		return 1;

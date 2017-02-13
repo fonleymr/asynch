@@ -9,40 +9,48 @@
 #include <math.h>
 #include <string.h>
 
+#include "io.h"
+#include "minmax.h"
 #include "rkmethods.h"
+#include "blas.h"
 
 extern VEC* dump;
 
 
+static double sq(double val)
+{
+    return val * val;
+}
+
+
 //Copies contents of the vectors full_k with dim entries into the vectors k with num_dense entries.
-static void store_k(VEC* full_k, VEC* k, unsigned int s, unsigned int* dense_indices, unsigned int num_dense)
+static void store_k(VEC2 full_k, VEC2 k, unsigned int s, unsigned int* dense_indices, unsigned int num_dense)
 {
     unsigned int i, j;
 
     for (i = 0; i < s; i++)
     {
         for (j = 0; j < num_dense; j++)
-            k[i].ve[j] = full_k[i].ve[dense_indices[j]];
+            v2_set(k, i, j, v2_at(full_k, i, dense_indices[j]));
     }
 }
 
 
 //Builds a dense output RK method of order 4 at each step (order 3 for dense output)
-RKMethod* TheRKDense4_3()
+void Init_TheRKDense4_3(RKMethod* method)
 {
-    RKMethod* method = (RKMethod*)malloc(sizeof(RKMethod));
     method->s = 4;
     method->unique_c = 4;
     method->exp_imp = 0;
-    method->A = m_get(method->s, method->s);
-    method->b = v_get(method->s);
-    method->b_theta = v_get(method->s);
-    method->b_theta_deriv = v_get(0);
-    method->c = v_get(method->s);
+    method->A = v2_init(method->s, method->s);
+    method->b = v_init(method->s);
+    method->b_theta = v_init(method->s);
+    method->b_theta_deriv = v_init(0);
+    method->c = v_init(method->s);
     method->dense_b = &TheRKDense4_3_b;
     method->dense_bderiv = NULL;
-    method->e = v_get(method->s);
-    method->d = v_get(method->s);
+    method->e = v_init(method->s);
+    method->d = v_init(method->s);
     method->e_order = 4;
     method->e_order_ratio = 4.0 / 2.0;
     //method->e_order_ratio = 1.0/2.0;
@@ -53,62 +61,62 @@ RKMethod* TheRKDense4_3()
     method->localorder = 4;
 
     //Build the parameters for the method
-    method->A.me[1][0] = .5;
-    method->A.me[2][1] = .5;
-    method->A.me[3][2] = 1;
+    v2_set(method->A, 1, 0, .5);
+    v2_set(method->A, 2, 1, .5);
+    v2_set(method->A, 3, 2, 1);
 
-    method->b.ve[0] = 1.0 / 6.0;
-    method->b.ve[1] = 2.0 / 6.0;
-    method->b.ve[2] = 2.0 / 6.0;
-    method->b.ve[3] = 1.0 / 6.0;
+    v_set(method->b, 0, 1.0 / 6.0);
+    v_set(method->b, 1, 2.0 / 6.0);
+    v_set(method->b, 2, 2.0 / 6.0);
+    v_set(method->b, 3, 1.0 / 6.0);
 
     method->dense_b(1.0, method->b_theta);
 
-    method->c.ve[0] = 0;
-    method->c.ve[1] = .5;
-    method->c.ve[2] = .5;
-    method->c.ve[3] = 1;
+    v_set(method->c, 0, 0);
+    v_set(method->c, 1, .5);
+    v_set(method->c, 2, .5);
+    v_set(method->c, 3, 1);
 
-    method->e.ve[0] = 2.0 / 3.0;
-    method->e.ve[1] = 0.0;
-    method->e.ve[2] = -4.0 / 3.0;
-    method->e.ve[3] = 2.0 / 3.0;
+    v_set(method->e, 0, 2.0 / 3.0);
+    v_set(method->e, 1, 0.0);
+    v_set(method->e, 2, -4.0 / 3.0);
+    v_set(method->e, 3, 2.0 / 3.0);
 
-    method->d.ve[0] = 2.0 / 9.0;
-    method->d.ve[1] = 0.0;
-    method->d.ve[2] = -4.0 / 9.0;
-    method->d.ve[3] = 2.0 / 9.0;
+    v_set(method->d, 0, 2.0 / 9.0);
+    v_set(method->d, 1, 0.0);
+    v_set(method->d, 2, -4.0 / 9.0);
+    v_set(method->d, 3, 2.0 / 9.0);
 
-    method->w = v_get(0);
-
-    return method;
+    method->w = v_init(0);
 }
 
 //The b(theta) coefficients for TheRKDense4_3()
 void TheRKDense4_3_b(double theta, VEC b)
 {
-    b.ve[0] = theta - 3.0 / 2.0*theta*theta + 2.0 / 3.0*theta*theta*theta;
-    b.ve[1] = theta*theta - 2.0 / 3.0*theta*theta*theta;
-    b.ve[2] = b.ve[1];
-    b.ve[3] = -1.0 / 2.0*theta*theta + 2.0 / 3.0*theta*theta*theta;
+    double t2 = theta * theta;
+    double t3 = t2 * theta;
+
+    v_set(b, 0, theta - 3.0 / 2.0 * t2 + 2.0 / 3.0 * t3);
+    v_set(b, 1, t2 - 2.0 / 3.0 * t3);
+    v_set(b, 2, t2 - 2.0 / 3.0 * t3);
+    v_set(b, 3, -1.0 / 2.0 * t2 + 2.0 / 3.0 * t3);
 }
 
 //Builds a dense output version of Dormand-Prince 5(4) with dense order 4
-RKMethod* DOPRI5_dense()
+void Init_DOPRI5_dense(RKMethod* method)
 {
-    RKMethod* method = (RKMethod*)malloc(sizeof(RKMethod));
     method->s = 7;
     method->unique_c = 6;
     method->exp_imp = 0;
-    method->A = m_get(method->s, method->s);
-    method->b = v_get(method->s);
-    method->b_theta = v_get(method->s);
-    method->b_theta_deriv = v_get(method->s);
-    method->c = v_get(method->s);
+    method->A = v2_init(method->s, method->s);
+    method->b = v_init(method->s);
+    method->b_theta = v_init(method->s);
+    method->b_theta_deriv = v_init(method->s);
+    method->c = v_init(method->s);
     method->dense_b = &DOPRI5_b;
     method->dense_bderiv = &DOPRI5_bderiv;
-    method->e = v_get(method->s);
-    method->d = v_get(method->s);
+    method->e = v_init(method->s);
+    method->d = v_init(method->s);
     method->e_order = 5;
     //method->e_order = 6;
     method->e_order_ratio = 6.0 / 5.0;
@@ -121,59 +129,57 @@ RKMethod* DOPRI5_dense()
     method->localorder = 5;
 
     //Build the parameters for the method
-    method->A.me[1][0] = 1.0 / 5.0;
-    method->A.me[2][0] = 3.0 / 40.0;
-    method->A.me[2][1] = 9.0 / 40.0;
-    method->A.me[3][0] = 44.0 / 45.0;
-    method->A.me[3][1] = -56.0 / 15.0;
-    method->A.me[3][2] = 32.0 / 9.0;
-    method->A.me[4][0] = 19372.0 / 6561.0;
-    method->A.me[4][1] = -25360.0 / 2187.0;
-    method->A.me[4][2] = 64448.0 / 6561.0;
-    method->A.me[4][3] = -212.0 / 729.0;
-    method->A.me[5][0] = 9017.0 / 3168.0;
-    method->A.me[5][1] = -355.0 / 33.0;
-    method->A.me[5][2] = 46732.0 / 5247.0;
-    method->A.me[5][3] = 49.0 / 176.0;
-    method->A.me[5][4] = -5103.0 / 18656.0;
-    method->A.me[6][0] = 35.0 / 384.0;
-    method->A.me[6][1] = 0.0;
-    method->A.me[6][2] = 500.0 / 1113.0;
-    method->A.me[6][3] = 125.0 / 192.0;
-    method->A.me[6][4] = -2187.0 / 6784.0;
-    method->A.me[6][5] = 11.0 / 84.0;
+    v2_set(method->A, 1, 0, 1.0 / 5.0);
+    v2_set(method->A, 2, 0, 3.0 / 40.0);
+    v2_set(method->A, 2, 1, 9.0 / 40.0);
+    v2_set(method->A, 3, 0, 44.0 / 45.0);
+    v2_set(method->A, 3, 1, -56.0 / 15.0);
+    v2_set(method->A, 3, 2, 32.0 / 9.0);
+    v2_set(method->A, 4, 0, 19372.0 / 6561.0);
+    v2_set(method->A, 4, 1, -25360.0 / 2187.0);
+    v2_set(method->A, 4, 2, 64448.0 / 6561.0);
+    v2_set(method->A, 4, 3, -212.0 / 729.0);
+    v2_set(method->A, 5, 0, 9017.0 / 3168.0);
+    v2_set(method->A, 5, 1, -355.0 / 33.0);
+    v2_set(method->A, 5, 2, 46732.0 / 5247.0);
+    v2_set(method->A, 5, 3, 49.0 / 176.0);
+    v2_set(method->A, 5, 4, -5103.0 / 18656.0);
+    v2_set(method->A, 6, 0, 35.0 / 384.0);
+    v2_set(method->A, 6, 1, 0.0);
+    v2_set(method->A, 6, 2, 500.0 / 1113.0);
+    v2_set(method->A, 6, 3, 125.0 / 192.0);
+    v2_set(method->A, 6, 4, -2187.0 / 6784.0);
+    v2_set(method->A, 6, 5, 11.0 / 84.0);
 
     method->dense_b(1.0, method->b);
     method->dense_b(1.0, method->b_theta);
     method->dense_bderiv(1.0, method->b_theta_deriv);
 
-    method->c.ve[0] = 0.0;
-    method->c.ve[1] = .2;
-    method->c.ve[2] = .3;
-    method->c.ve[3] = .8;
-    method->c.ve[4] = 8.0 / 9.0;
-    method->c.ve[5] = 1.0;
-    method->c.ve[6] = 1.0;
+    v_set(method->c, 0, 0.0);
+    v_set(method->c, 1, .2);
+    v_set(method->c, 2, .3);
+    v_set(method->c, 3, .8);
+    v_set(method->c, 4, 8.0 / 9.0);
+    v_set(method->c, 5, 1.0);
+    v_set(method->c, 6, 1.0);
 
-    method->e.ve[0] = 71.0 / 57600.0;
-    method->e.ve[1] = 0.0;
-    method->e.ve[2] = -71.0 / 16695.0;
-    method->e.ve[3] = 71.0 / 1920.0;
-    method->e.ve[4] = -17253.0 / 339200.0;
-    method->e.ve[5] = 22.0 / 525.0;
-    method->e.ve[6] = -1.0 / 40.0;
+    v_set(method->e, 0, 71.0 / 57600.0);
+    v_set(method->e, 1, 0.0);
+    v_set(method->e, 2, -71.0 / 16695.0);
+    v_set(method->e, 3, 71.0 / 1920.0);
+    v_set(method->e, 4, -17253.0 / 339200.0);
+    v_set(method->e, 5, 22.0 / 525.0);
+    v_set(method->e, 6, -1.0 / 40.0);
 
-    method->d.ve[0] = .610351562499951;
-    method->d.ve[1] = 0.0;
-    method->d.ve[2] = -2.105795148247852;
-    method->d.ve[3] = 18.310546874999346;
-    method->d.ve[4] = -25.185639003536881;
-    method->d.ve[5] = 20.749496981890658;
-    method->d.ve[6] = -12.378961267605213;
+    v_set(method->d, 0, .610351562499951);
+    v_set(method->d, 1, 0.0);
+    v_set(method->d, 2, -2.105795148247852);
+    v_set(method->d, 3, 18.310546874999346);
+    v_set(method->d, 4, -25.185639003536881);
+    v_set(method->d, 5, 20.749496981890658);
+    v_set(method->d, 6, -12.378961267605213);
 
     method->w = lagrange_weights(method->unique_c, method->c);
-
-    return method;
 }
 
 //The b(theta) coefficients for DOPRI5_dense()
@@ -184,31 +190,31 @@ void DOPRI5_b(double theta, VEC b)
         double ntheta2m3 = 3.0 - 2.0*theta;
         double thetam1_sq = sq(theta-1.0);
 
-        b.ve[0] = theta_sq*( ntheta2m3*(35.0/384.0) - thetam1_sq*(5.0/11282082432.0)*(2558722523.0-31403016.0*theta) ) + theta*thetam1_sq;
-        b.ve[1] = 0.0;
-        b.ve[2] = theta_sq*( ntheta2m3*(500.0/1113.0) + thetam1_sq*(100.0/32700410799.0)*(882725551.0-15701508.0*theta) );
-        b.ve[3] = theta_sq*( ntheta2m3*(125.0/192.0) - thetam1_sq*(25.0/1880347072.0)*(443332067.0-31403016.0*theta) );
-        b.ve[4] = theta_sq*( ntheta2m3*(-2187.0/6784.0) + thetam1_sq*(32805.0/199316789632.0)*(23143187.0-3489224.0*theta) );
-        b.ve[5] = theta_sq*( ntheta2m3*(11.0/84.0) - thetam1_sq*(55.0/822651844.0)*(29972135.0-7076736.0*theta) );
-        b.ve[6] = theta_sq*( (theta-1.0) + thetam1_sq*(10.0/29380423.0)*(7414447.0-829305.0*theta) );
+        v_set(b, 0, theta_sq*( ntheta2m3*(35.0/384.0) - thetam1_sq*(5.0/11282082432.0)*(2558722523.0-31403016.0*theta) ) + theta*thetam1_sq);
+        v_set(b, 1, 0.0);
+        v_set(b, 2, theta_sq*( ntheta2m3*(500.0/1113.0) + thetam1_sq*(100.0/32700410799.0)*(882725551.0-15701508.0*theta) ));
+        v_set(b, 3, theta_sq*( ntheta2m3*(125.0/192.0) - thetam1_sq*(25.0/1880347072.0)*(443332067.0-31403016.0*theta) ));
+        v_set(b, 4, theta_sq*( ntheta2m3*(-2187.0/6784.0) + thetam1_sq*(32805.0/199316789632.0)*(23143187.0-3489224.0*theta) ));
+        v_set(b, 5, theta_sq*( ntheta2m3*(11.0/84.0) - thetam1_sq*(55.0/822651844.0)*(29972135.0-7076736.0*theta) ));
+        v_set(b, 6, theta_sq*( (theta-1.0) + thetam1_sq*(10.0/29380423.0)*(7414447.0-829305.0*theta) ));
     */
 
-    b.ve[0] = sq(theta)*((3.0 - 2.0*theta)*(35.0 / 384.0) - sq(theta - 1.0)*(5.0 / 11282082432.0)*(2558722523.0 - 31403016.0*theta)) + theta*sq(theta - 1.0);
-    b.ve[1] = 0.0;
-    b.ve[2] = sq(theta)*((3.0 - 2.0*theta)*(500.0 / 1113.0) + sq(theta - 1.0)*(100.0 / 32700410799.0)*(882725551.0 - 15701508.0*theta));
-    b.ve[3] = sq(theta)*((3.0 - 2.0*theta)*(125.0 / 192.0) - sq(theta - 1.0)*(25.0 / 1880347072.0)*(443332067.0 - 31403016.0*theta));
-    b.ve[4] = sq(theta)*((3.0 - 2.0*theta)*(-2187.0 / 6784.0) + sq(theta - 1.0)*(32805.0 / 199316789632.0)*(23143187.0 - 3489224.0*theta));
-    b.ve[5] = sq(theta)*((3.0 - 2.0*theta)*(11.0 / 84.0) - sq(theta - 1.0)*(55.0 / 822651844.0)*(29972135.0 - 7076736.0*theta));
-    b.ve[6] = sq(theta)*((theta - 1.0) + sq(theta - 1.0)*(10.0 / 29380423.0)*(7414447.0 - 829305.0*theta));
+    v_set(b, 0, sq(theta)*((3.0 - 2.0*theta)*(35.0 / 384.0) - sq(theta - 1.0)*(5.0 / 11282082432.0)*(2558722523.0 - 31403016.0*theta)) + theta*sq(theta - 1.0));
+    v_set(b, 1, 0.0);
+    v_set(b, 2, sq(theta)*((3.0 - 2.0*theta)*(500.0 / 1113.0) + sq(theta - 1.0)*(100.0 / 32700410799.0)*(882725551.0 - 15701508.0*theta)));
+    v_set(b, 3, sq(theta)*((3.0 - 2.0*theta)*(125.0 / 192.0) - sq(theta - 1.0)*(25.0 / 1880347072.0)*(443332067.0 - 31403016.0*theta)));
+    v_set(b, 4, sq(theta)*((3.0 - 2.0*theta)*(-2187.0 / 6784.0) + sq(theta - 1.0)*(32805.0 / 199316789632.0)*(23143187.0 - 3489224.0*theta)));
+    v_set(b, 5, sq(theta)*((3.0 - 2.0*theta)*(11.0 / 84.0) - sq(theta - 1.0)*(55.0 / 822651844.0)*(29972135.0 - 7076736.0*theta)));
+    v_set(b, 6, sq(theta)*((theta - 1.0) + sq(theta - 1.0)*(10.0 / 29380423.0)*(7414447.0 - 829305.0*theta)));
 
     /*
-        b.ve[0] = sq(theta)*(3.0-2.0*theta)*35.0/384.0 + theta*sq(theta-1.0) - sq(theta)*sq(theta-1.0)*5.0*(2558722523.0-31403016.0*theta)/11282082432.0;
-        b.ve[1] = 0.0;
-        b.ve[2] = sq(theta)*(3.0-2.0*theta)*500.0/1113.0 + sq(theta)*sq(theta-1.0)*100.0*(882725551.0-15701508.0*theta)/32700410799.0;
-        b.ve[3] = sq(theta)*(3.0-2.0*theta)*125.0/192.0 - sq(theta)*sq(theta-1.0)*25.0*(443332067.0-31403016.0*theta)/1880347072.0;
-        b.ve[4] = sq(theta)*(3.0-2.0*theta)*-2187.0/6784.0 + sq(theta)*sq(theta-1.0)*32805.0*(23143187.0-3489224.0*theta)/199316789632.0;
-        b.ve[5] = sq(theta)*(3.0-2.0*theta)*11.0/84.0 - sq(theta)*sq(theta-1.0)*55.0*(29972135.0-7076736.0*theta)/822651844.0;
-        b.ve[6] = sq(theta)*(theta-1.0) + sq(theta)*sq(theta-1.0)*10.0*(7414447.0-829305.0*theta)/29380423.0;
+        v_set(b, 0, sq(theta)*(3.0-2.0*theta)*35.0/384.0 + theta*sq(theta-1.0) - sq(theta)*sq(theta-1.0)*5.0*(2558722523.0-31403016.0*theta)/11282082432.0);
+        v_set(b, 1, 0.0);
+        v_set(b, 2, sq(theta)*(3.0-2.0*theta)*500.0/1113.0 + sq(theta)*sq(theta-1.0)*100.0*(882725551.0-15701508.0*theta)/32700410799.0);
+        v_set(b, 3, sq(theta)*(3.0-2.0*theta)*125.0/192.0 - sq(theta)*sq(theta-1.0)*25.0*(443332067.0-31403016.0*theta)/1880347072.0);
+        v_set(b, 4, sq(theta)*(3.0-2.0*theta)*-2187.0/6784.0 + sq(theta)*sq(theta-1.0)*32805.0*(23143187.0-3489224.0*theta)/199316789632.0);
+        v_set(b, 5, sq(theta)*(3.0-2.0*theta)*11.0/84.0 - sq(theta)*sq(theta-1.0)*55.0*(29972135.0-7076736.0*theta)/822651844.0);
+        v_set(b, 6, sq(theta)*(theta-1.0) + sq(theta)*sq(theta-1.0)*10.0*(7414447.0-829305.0*theta)/29380423.0);
     */
 }
 
@@ -219,31 +225,30 @@ void DOPRI5_bderiv(double theta, VEC b)
     const double prod2 = 2.0*theta*(theta - 1.0)*(2.0*theta - 1.0);
     const double prod3 = sq(theta)*sq(theta - 1.0);
 
-    b.ve[0] = prod1*(35.0 / 384.0) + (theta - 1.0)*(3.0*theta - 1.0) - 2.0*theta*(theta - 1.0)*(2.0*theta - 1.0)*(5.0 / 11282082432.0)*(2558722523.0 - 31403016.0*theta) + prod3*(157015080.0 / 11282082432.0);
-    b.ve[1] = 0.0;
-    b.ve[2] = prod1*(500.0 / 1113.0) + prod2*(100.0 / 32700410799.0)*(882725551.0 - 15701508.0*theta) - prod3*(1570150800.0 / 32700410799.0);
-    b.ve[3] = prod1*(125.0 / 192.0) - prod2*(25.0 / 1880347072.0)*(443332067.0 - 31403016.0*theta) + prod3*(785075400.0 / 1880347072.0);
-    b.ve[4] = prod1*(-2187.0 / 6784.0) + prod2*(32805.0 / 199316789632.0)*(23143187.0 - 3489224.0*theta) - prod3*(1144640195640.0 / 199316789632.0);
-    b.ve[5] = prod1*(11.0 / 84.0) - prod2*(55.0 / 822651844.0)*(29972135.0 - 7076736.0*theta) + prod3*(389220480.0 / 822651844.0);
-    b.ve[6] = theta*(3.0*theta - 2.0) + prod2*(10.0 / 29380423.0)*(7414447.0 - 829305.0*theta) - prod3*(8293050.0 / 29380423.0);
+    v_set(b, 0, prod1*(35.0 / 384.0) + (theta - 1.0)*(3.0*theta - 1.0) - 2.0*theta*(theta - 1.0)*(2.0*theta - 1.0)*(5.0 / 11282082432.0)*(2558722523.0 - 31403016.0*theta) + prod3*(157015080.0 / 11282082432.0));
+    v_set(b, 1, 0.0);
+    v_set(b, 2, prod1*(500.0 / 1113.0) + prod2*(100.0 / 32700410799.0)*(882725551.0 - 15701508.0*theta) - prod3*(1570150800.0 / 32700410799.0));
+    v_set(b, 3, prod1*(125.0 / 192.0) - prod2*(25.0 / 1880347072.0)*(443332067.0 - 31403016.0*theta) + prod3*(785075400.0 / 1880347072.0));
+    v_set(b, 4, prod1*(-2187.0 / 6784.0) + prod2*(32805.0 / 199316789632.0)*(23143187.0 - 3489224.0*theta) - prod3*(1144640195640.0 / 199316789632.0));
+    v_set(b, 5, prod1*(11.0 / 84.0) - prod2*(55.0 / 822651844.0)*(29972135.0 - 7076736.0*theta) + prod3*(389220480.0 / 822651844.0));
+    v_set(b, 6, theta*(3.0*theta - 2.0) + prod2*(10.0 / 29380423.0)*(7414447.0 - 829305.0*theta) - prod3*(8293050.0 / 29380423.0));
 }
 
 //Builds a dense output RK method of order 3 at each step (order 2 for dense output)
-RKMethod* RKDense3_2()
+void Init_RKDense3_2(RKMethod* method)
 {
-    RKMethod* method = (RKMethod*)malloc(sizeof(RKMethod));
     method->s = 3;
     method->unique_c = 3;
     method->exp_imp = 0;
-    method->A = m_get(method->s, method->s);
-    method->b = v_get(method->s);
-    method->b_theta = v_get(method->s);
-    method->b_theta_deriv = v_get(method->s);
-    method->c = v_get(method->s);
+    method->A = v2_init(method->s, method->s);
+    method->b = v_init(method->s);
+    method->b_theta = v_init(method->s);
+    method->b_theta_deriv = v_init(method->s);
+    method->c = v_init(method->s);
     method->dense_b = &RKDense3_2_b;
     method->dense_bderiv = &RKDense3_2_bderiv;
-    method->e = v_get(method->s);
-    method->d = v_get(method->s);
+    method->e = v_init(method->s);
+    method->d = v_init(method->s);
     method->e_order = 3;
     method->e_order_ratio = 3.0 / 2.0;
     //method->e_order_ratio = 1.0/2.0;
@@ -254,62 +259,59 @@ RKMethod* RKDense3_2()
     method->localorder = 3;
 
     //Build the coefficients for the method
-    method->A.me[1][0] = .5;
-    method->A.me[2][0] = -1;
-    method->A.me[2][1] = 2;
+    v2_set(method->A, 1, 0, .5);
+    v2_set(method->A, 2, 0, -1);
+    v2_set(method->A, 2, 1, 2);
 
     method->dense_b(1.0, method->b);
     method->dense_b(1.0, method->b_theta);
 
-    method->c.ve[0] = 0.0;
-    method->c.ve[1] = .5;
-    method->c.ve[2] = 1.0;
+    v_set(method->c, 0, 0.0);
+    v_set(method->c, 1, .5);
+    v_set(method->c, 2, 1.0);
 
-    method->e.ve[0] = 2.0 / 3.0;
-    method->e.ve[1] = -4.0 / 3.0;
-    method->e.ve[2] = 2.0 / 3.0;
+    v_set(method->e, 0, 2.0 / 3.0);
+    v_set(method->e, 1, -4.0 / 3.0);
+    v_set(method->e, 2, 2.0 / 3.0);
 
-    method->d.ve[0] = 1.0 / 3.0;
-    method->d.ve[1] = -2.0 / 3.0;
-    method->d.ve[2] = 1.0 / 3.0;
+    v_set(method->d, 0, 1.0 / 3.0);
+    v_set(method->d, 1, -2.0 / 3.0);
+    v_set(method->d, 2, 1.0 / 3.0);
 
-    method->w = v_get(0);
-
-    return method;
+    method->w = v_init(0);
 }
 
 //The b(theta) coefficients for RKDense3_2()
 void RKDense3_2_b(double theta, VEC b)
 {
-    b.ve[0] = theta*(1 + theta*(-3.0 / 2.0 + 2.0 / 3.0*theta));
-    b.ve[1] = 2 * theta*theta*(1 - 2.0 / 3.0*theta);
-    b.ve[2] = theta*theta*(2.0 / 3.0*theta - .5);
+    v_set(b, 0, theta*(1 + theta*(-3.0 / 2.0 + 2.0 / 3.0*theta)));
+    v_set(b, 1, 2 * theta*theta*(1 - 2.0 / 3.0*theta));
+    v_set(b, 2, theta*theta*(2.0 / 3.0*theta - .5));
 }
 
 //The b'(theta) coefficients for RKDense3_2()
 void RKDense3_2_bderiv(double theta, VEC b)
 {
-    b.ve[0] = 1.0 - 3.0*theta + 2.0*theta*theta;
-    b.ve[1] = 4.0*theta - 4.0*theta*theta;
-    b.ve[2] = 2.0*theta*theta - theta;
+    v_set(b, 0, 1.0 - 3.0*theta + 2.0*theta*theta);
+    v_set(b, 1, 4.0*theta - 4.0*theta*theta);
+    v_set(b, 2, 2.0*theta*theta - theta);
 }
 
 //Builds a dense output version of the 3 stage RadauIIA method with dense output
-RKMethod* RadauIIA3_dense()
+void Init_RadauIIA3_dense(RKMethod* method)
 {
-    RKMethod* method = (RKMethod*)malloc(sizeof(RKMethod));
     method->s = 3;
     method->unique_c = 3;
     method->exp_imp = 1;
-    method->A = m_get(method->s, method->s);
-    method->b = v_get(method->s);
-    method->b_theta = v_get(method->s);
-    method->b_theta_deriv = v_get(0);
+    method->A = v2_init(method->s, method->s);
+    method->b = v_init(method->s);
+    method->b_theta = v_init(method->s);
+    method->b_theta_deriv = v_init(0);
     method->dense_bderiv = NULL;
-    method->c = v_get(method->s);
+    method->c = v_init(method->s);
     method->dense_b = &RadauIIA3_b;
-    method->e = v_get(method->s + 1);
-    method->d = v_get(method->s + 1);
+    method->e = v_init(method->s + 1);
+    method->d = v_init(method->s + 1);
     method->e_order = 4;
     method->e_order_ratio = 4.0 / 3.0;
     method->d_order = 3;
@@ -317,51 +319,49 @@ RKMethod* RadauIIA3_dense()
     method->localorder = 5;
 
     //Build the parameters for the method
-    method->A.me[0][0] = 0.1968154772236604;
-    method->A.me[0][1] = -0.06553542585019839;
-    method->A.me[0][2] = 0.02377097434822015;
-    method->A.me[1][0] = 0.3944243147390873;
-    method->A.me[1][1] = 0.2920734116652285;
-    method->A.me[1][2] = -0.04154875212599793;
-    method->A.me[2][0] = 0.3764030627004673;
-    method->A.me[2][1] = 0.5124858261884216;
-    method->A.me[2][2] = 0.1111111111111111;
+    v2_set(method->A, 0, 0, 0.1968154772236604);
+    v2_set(method->A, 0, 1, -0.06553542585019839);
+    v2_set(method->A, 0, 2, 0.02377097434822015);
+    v2_set(method->A, 1, 0, 0.3944243147390873);
+    v2_set(method->A, 1, 1, 0.2920734116652285);
+    v2_set(method->A, 1, 2, -0.04154875212599793);
+    v2_set(method->A, 2, 0, 0.3764030627004673);
+    v2_set(method->A, 2, 1, 0.5124858261884216);
+    v2_set(method->A, 2, 2, 0.1111111111111111);
 
     method->dense_b(1.0, method->b);
     method->dense_b(1.0, method->b_theta);
 
-    method->c.ve[0] = 0.1550510257216822;
-    method->c.ve[1] = 0.6449489742783178;
-    method->c.ve[2] = 1.0;
+    v_set(method->c, 0, 0.1550510257216822);
+    v_set(method->c, 1, 0.6449489742783178);
+    v_set(method->c, 2, 1.0);
 
-    method->e.ve[0] = -2.762305454748599;
-    method->e.ve[1] = 0.379935598252729;
-    method->e.ve[2] = -0.091629609865226;
-    method->e.ve[3] = 0.2748888295956774;
+    v_set(method->e, 0, -2.762305454748599);
+    v_set(method->e, 1, 0.379935598252729);
+    v_set(method->e, 2, -0.091629609865226);
+    v_set(method->e, 3, 0.2748888295956774);
     /*
         //Two trees 0
-        method->d.ve[0] = 0.8097732865210982;
-        method->d.ve[1] = -2.701318593546288;
-        method->d.ve[2] = 1.616656477429513;
-        method->d.ve[3] = 0.2748888295956774;
+        v_set(method->d, 0, 0.8097732865210982);
+        v_set(method->d, 1, -2.701318593546288);
+        v_set(method->d, 2, 1.616656477429513);
+        v_set(method->d, 3, 0.2748888295956774);
     */
 
     //Three trees 0 (Original)
-    method->d.ve[0] = -0.428298294115368;
-    method->d.ve[1] = 0.245039074384917;
-    method->d.ve[2] = -0.091629609865226;
-    method->d.ve[3] = 0.2748888295956774;
+    v_set(method->d, 0, -0.428298294115368);
+    v_set(method->d, 1, 0.245039074384917);
+    v_set(method->d, 2, -0.091629609865226);
+    v_set(method->d, 3, 0.2748888295956774);
 
     /*
         //No d_0, two tree 0
-        method->d.ve[0] = 1.238071580636466;
-        method->d.ve[1] = -2.946357667931205;
-        method->d.ve[2] = 1.708286087294739;
+        v_set(method->d, 0, 1.238071580636466);
+        v_set(method->d, 1, -2.946357667931205);
+        v_set(method->d, 2, 1.708286087294739);
 
     */
     method->w = lagrange_weights(method->s, method->c);
-
-    return method;
 }
 
 //The b(theta) coefficients for RadauIIA2_dense()
@@ -370,21 +370,20 @@ void RadauIIA3_b(double theta, VEC b)
     double t2 = theta * theta;
     double t3 = t2 * theta;
 
-    b.ve[0] = 1.558078204724922 * theta - 1.986947221348443 * t2 + 0.805272079323988 * t3;
-    b.ve[1] = -0.891411538058256 * theta + 3.320280554681776 * t2 - 1.916383190435099 * t3;
-    b.ve[2] = 0.3333333333333333 * theta - 1.333333333333333 * t2 + 1.111111111111111 * t3;
+    v_set(b, 0, 1.558078204724922 * theta - 1.986947221348443 * t2 + 0.805272079323988 * t3);
+    v_set(b, 1, -0.891411538058256 * theta + 3.320280554681776 * t2 - 1.916383190435099 * t3);
+    v_set(b, 2, 0.3333333333333333 * theta - 1.333333333333333 * t2 + 1.111111111111111 * t3);
 }
 
 
-double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, TempStorage* workspace)
+double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, Workspace* workspace)
 {
     unsigned int start = link_i->diff_start;
-    VEC y0 = link_i->list->tail->y_approx;
-    double t_0 = link_i->list->tail->t;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
+    VEC y_0 = link_i->my->list.tail->y_approx;
+    double t_0 = link_i->my->list.tail->t;
     VEC fy0 = workspace->temp;
     VEC fy1 = workspace->sum;
-    VEC y1 = workspace->temp2;
+    VEC y_1 = workspace->temp2;
     VEC SC = workspace->temp3;
     unsigned int p = link_i->method->localorder;
     Link* currentp;
@@ -394,25 +393,29 @@ double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, TempStora
     unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
 
     //Build SC for this link
-    for (i = 0; i < dim; i++)	SC.ve[i] = max(fabs(y0.ve[i]), fabs(y0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+    for (i = 0; i < dim; i++)
+        v_set(SC, i, fabs(v_at(y_0, i)) * v_at(error->reltol, i) + v_at(error->abstol, i));
 
     //Grab parents data
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node = currentp->list->head;
+        curr_node = currentp->my->list.head;
 
-        if (fabs(currentp->list->tail->t - t) < 1e-10)	//!!!! Ugh... !!!!
-            v_copy_n(currentp->list->tail->y_approx, temp_parent_approx[0][i], currentp->dim);
+        VEC parent_approx = v3_slice2(workspace->temp_parent_approx, 0, i);
+
+        if (fabs(currentp->my->list.tail->t - t) < 1e-10)	//!!!! Ugh... !!!!
+            v_copy_n(currentp->my->list.tail->y_approx, parent_approx, currentp->dim);
         else
         {
             //Find the corresponding theta value and approximate solution
             while (t > curr_node->t)
                 curr_node = curr_node->next;
-            if (curr_node != currentp->list->head)	curr_node = curr_node->prev;
+            if (curr_node != currentp->my->list.head)
+                curr_node = curr_node->prev;
 
             timediff = curr_node->next->t - curr_node->t;
             current_theta = (t - curr_node->t) / timediff;
@@ -422,20 +425,26 @@ double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, TempStora
             for (m = 0; m < currentp->num_dense; m++)
             {
                 idx = currentp->dense_indices[m];
-                temp_parent_approx[0][i].ve[idx] = curr_node->y_approx.ve[idx];
+                v_set(parent_approx, idx, v_at(curr_node->y_approx, idx));
+
                 for (l = 0; l < currentp->method->s; l++)
-                    temp_parent_approx[0][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node->next->k[l].ve[m];
+                    v_set(parent_approx, idx, v_at(parent_approx, idx)
+                        + timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node->next->k, l, m));
             }
-            link_i->CheckConsistency(temp_parent_approx[0][i], currentp->params, GlobalVars->global_params);
-            //if(link_i->alg != NULL)	link_i->alg(temp_parent_approx[0][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node->next->state,temp_parent_approx[0][i]);
-            if (currentp->alg)	currentp->alg(temp_parent_approx[0][i], GlobalVars->global_params, currentp->params, currentp->qvs, curr_node->state, currentp->user, temp_parent_approx[0][i]);
+            link_i->check_consistency(parent_approx, currentp->params, GlobalVars->global_params);
+            //if(link_i->algebraic != NULL)	link_i->algebraic(temp_parent_approx[0][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node->next->state,temp_parent_approx[0][i]);
+            if (currentp->algebraic)
+                currentp->algebraic(parent_approx, GlobalVars->global_params, currentp->params, currentp->qvs, curr_node->state, currentp->user, parent_approx);
         }
     }
 
+    VEC2 parents_approx = v3_slice(workspace->temp_parent_approx, 0);
+    parents_approx.dim[0] = link_i->num_parents;    //Adjust the number of parents for this specific link (temp_parent_approx as max num parents)
+
     //Step a
     //d0 = vector_norminf(y0,start);
-    d0 = norm_inf_u(y0, SC, start, link_i->dim);
-    link_i->f(t_0, y0, temp_parent_approx[0], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, link_i->params, link_i->state, link_i->user, fy0);
+    d0 = norm_inf_u(y_0, SC, start, link_i->dim);
+    link_i->differential(t_0, y_0, parents_approx, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, link_i->params, link_i->state, link_i->user, fy0);
     d1 = norm_inf_u(fy0, SC, start, link_i->dim);
 
     //Step b
@@ -444,10 +453,10 @@ double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, TempStora
 
     //Step c
     //Note: This assumes the parents discharge is the same. It also assume no change in rain or state
-    v_copy_n(y0, y1, link_i->dim);
-    daxpy_u(h0, fy0, y1, start, link_i->dim);
-    link_i->CheckConsistency(y1, link_i->params, GlobalVars->global_params);
-    link_i->f(t_0 + h0, y1, temp_parent_approx[0], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, link_i->params, link_i->state, link_i->user, fy1);
+    v_copy_n(y_0, y_1, link_i->dim);
+    daxpy_u(h0, fy0, y_1, start, link_i->dim);
+    link_i->check_consistency(y_1, link_i->params, GlobalVars->global_params);
+    link_i->differential(t_0 + h0, y_1, parents_approx, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, link_i->params, link_i->state, link_i->user, fy1);
 
     //Step d
     v_sub(fy1, fy0, fy1, start);
@@ -464,17 +473,19 @@ double InitialStepSize(double t, Link* link_i, GlobalVars* GlobalVars, TempStora
     //return h1;
     //frexp(h1,&exponent);
     //if(exponent < -29)	return 1e-10;
-    if (y0.ve[0] < 1e-6)	return 1e-2;
-    else			return h1;
+    if (v_at(y_0, 0) < 1e-6)
+        return 1e-2;
+    else		
+        return h1;
 }
 
 
 //Computes one step of a method to solve the ODE at a link. Assumes parents have enough computed solutions.
 //Link* link_i: the link to apply a numerical method to.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, TempStorage* workspace)
+int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
-    unsigned int i, j, l, m, idx;
+    unsigned int idx;
     //VEC** k;
     VEC new_y;
     RKSolutionNode *curr_node[ASYNCH_LINK_MAX_PARENTS], *node, *new_node;
@@ -482,65 +493,69 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
     double t_needed, timediff, current_theta;
 
     //Some variables to make things easier to read
-    VEC y_0 = link_i->list->tail->y_approx;
+    VEC y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2 A = link_i->method->A;
     VEC b = link_i->method->b;
     VEC c = link_i->method->c;
-    unsigned int s = link_i->method->s;
+    unsigned int num_stages = link_i->method->s;
     VEC params = link_i->params;
     VEC e = link_i->method->e;
     VEC d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
     unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
     unsigned int num_outputs = GlobalVars->num_outputs;
     VEC temp = workspace->temp;
     VEC sum = workspace->sum;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
-    VEC* temp_k = workspace->temp_k;
+    VEC* temp_k = workspace->temp_k_slices;
 
     //Get the approximate solutions from each parent
-    for (i = 0; i < link_i->num_parents; i++)
+    for (unsigned int i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
-        for (j = 0; j < s; j++)
+        curr_node[i] = currentp->my->list.head;
+        for (unsigned int j = 0; j < num_stages; j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j] * h, currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j) * h, currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             //while(t_needed > curr_node[i]->t && ( fabs(curr_node[i]->t) < 1e-12 || fabs(t_needed - curr_node[i]->t)/curr_node[i]->t > 1e-12) )
             while (t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if (curr_node[i] != currentp->my->list.head)
+                curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed - curr_node[i]->t) / timediff;
             currentp->method->dense_b(current_theta, currentp->method->b_theta);
 
-            for (m = 0; m < currentp->num_dense; m++)
+            VEC parent_approx = v3_slice2(workspace->temp_parent_approx, j, i);
+
+            for (unsigned int m = 0; m < currentp->num_dense; m++)
             {
                 idx = currentp->dense_indices[m];
-                temp_parent_approx[j][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
-                for (l = 0; l < currentp->method->s; l++)
-                    temp_parent_approx[j][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                double approx = v_at(curr_node[i]->y_approx, idx);
+                for (unsigned int l = 0; l < currentp->method->s; l++)
+                    approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+                
+                v_set(parent_approx, idx, approx);
             }
-            link_i->CheckConsistency(temp_parent_approx[j][i], params, GlobalVars->global_params);
+            link_i->check_consistency(parent_approx, params, GlobalVars->global_params);
         }
     }
-
+    
     //Do the RK method to get the next approximation
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     //k = new_node->k;
     new_y = new_node->y_approx;
@@ -557,28 +572,29 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
     }
     */
     //Compute the k's
-    for (i = 0; i < s; i++)
+    for (unsigned int i = 0; i < num_stages; i++)
     {
         v_copy_n(y_0, sum, link_i->dim);
-        for (j = 0; j < i; j++)
-            daxpy_u(h*A.me[i][j], temp_k[j], sum, 0, link_i->dim);
-        link_i->CheckConsistency(sum, params, GlobalVars->global_params);
-        link_i->f(t + c.ve[i] * h, sum, temp_parent_approx[i], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp_k[i]);
-        /*
-        if(stopper)
-        {
-        Print_Vector(sum);
-        Print_Vector(temp_k[i]);
-        printf("+++++\n");
-        getchar();
-        }
-        */
+        for (unsigned int j = 0; j < i; j++)
+            //daxpy_u(h * v2_at(A, i, j), v2_slice(temp_k, j), sum, 0, link_i->dim);
+            daxpy_u(h * v2_at(A, i, j), temp_k[j], sum, 0, link_i->dim);
+        
+        link_i->check_consistency(sum, params, GlobalVars->global_params);
+        
+        VEC2 y_p = v3_slice(workspace->temp_parent_approx, i);
+        y_p.dim[0] = link_i->num_parents;
+        
+        double dt = v_at(c, i) * h;
+
+        link_i->differential(t + dt, sum, y_p, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp_k[i]);
     }
 
     //Build the solution
     v_copy_n(y_0, new_y, link_i->dim);
-    for (i = 0; i < s; i++)	daxpy_u(h*b.ve[i], temp_k[i], new_y, 0, link_i->dim);
-    link_i->CheckConsistency(new_y, params, GlobalVars->global_params);
+    for (unsigned int i = 0; i < num_stages; i++)
+        //daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 0, link_i->dim);
+        daxpy_u(h * v_at(b, i), temp_k[i], new_y, 0, link_i->dim);
+    link_i->check_consistency(new_y, params, GlobalVars->global_params);
     new_node->state = link_i->state;
 
     /*
@@ -597,12 +613,14 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
     double err_1;
     v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * e.ve[0], sum, 0, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*e.ve[i], temp_k[i], sum, 0, link_i->dim);
+    sv_mlt_u(h * v_at(e, 0), sum, 0, link_i->dim);
+    for (unsigned int i = 1; i < num_stages; i++)
+        //daxpy_u(h*v_at(e, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
+        daxpy_u(h*v_at(e, i), temp_k[i], sum, 0, link_i->dim);        
 
     //Build SC_i
-    for (i = 0; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+    for (unsigned int i = 0; i < dim; i++)
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i))) * v_at(error->reltol, i) + v_at(error->abstol, i));
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,0);
     err_1 = norm_inf_u(sum, temp, 0, link_i->dim);
@@ -611,10 +629,14 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
     //Check the dense error (in inf norm) to determine if the step can be accepted
     double err_d;
     v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * d.ve[0], sum, 0, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*d.ve[i], temp_k[i], sum, 0, link_i->dim);
-    for (i = 0; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+    sv_mlt_u(h * v_at(d, 0), sum, 0, link_i->dim);
+    
+    for (unsigned int i = 1; i < num_stages; i++)
+        //daxpy_u(h*v_at(d, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
+        daxpy_u(h*v_at(d, i), temp_k[i], sum, 0, link_i->dim);        
+    
+    for (unsigned int i = 0; i < dim; i++)
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i))) * v_at(error->reltol_dense, i) + v_at(error->abstol_dense, i));
 
     //err_d = norm_inf(sum,temp,meth->d_order_ratio,0);
     err_d = norm_inf_u(sum, temp, 0, link_i->dim);
@@ -651,14 +673,14 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
         {
             //Works ok
             //!!!! Assumes 1d problem !!!!
-            //for(i=0;i<dim;i++)	temp2.ve[i] = 0.0;
+            //for(i=0;i<dim;i++)	tempv_at(2, i) = 0.0;
             sum_of_errors = 0.0;
             for(i=0;i<child->num_parents;i++)	//Assumes one state is passed link to link
-                sum_of_errors += child->parents[i]->errorinfo->abstol_dense.ve[0];
+                sum_of_errors += child->parents[i]->error_data->abstol_densv_at(e, 0);
 
             Jx_simple_river(child->list->tail->y_approx,GlobalVars->global_params,child->params,temp);
             sv_mlt((t+h - child->last_t)*sum_of_errors,temp,GlobalVars->diff_start);
-            //temp2.ve[0] *= (t+h - child->last_t) * Jx;
+            //tempv_at(2, 0) *= (t+h - child->last_t) * Jx;
 
             err_new = norm_inf(temp,error->abstol_dense,1.0,0);
             double value_new = pow(1.0/(link_i->h * err_new),1.0/4.0);	//!!!! For Dormand & Prince !!!!
@@ -706,7 +728,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
         //Save the new data
         link_i->last_t = t + h;
         link_i->current_iterations++;
-        store_k(temp_k, new_node->k, s, dense_indices, num_dense);
+        store_k(workspace->temp_k, new_node->k, num_stages, dense_indices, num_dense);
 
         //Check if new data should be written to disk
         if (print_flag)
@@ -730,20 +752,22 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
                     break;
                 }
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 current_theta = (link_i->next_save - t) / h;
                 link_i->method->dense_b(current_theta, link_i->method->b_theta);
-                for (m = 0; m < num_dense; m++)
+                for (unsigned int m = 0; m < num_dense; m++)
                 {
                     idx = dense_indices[m];
-                    sum.ve[idx] = node->y_approx.ve[idx];
-                    for (l = 0; l < link_i->method->s; l++)
-                        sum.ve[idx] += h*link_i->method->b_theta.ve[l] * node->next->k[l].ve[m];
+                    double approx = v_at(node->y_approx, idx);
+                    for (unsigned int l = 0; l < link_i->method->s; l++)
+                        approx += h * v_at(link_i->method->b_theta, l) * v2_at(node->next->k, l, m);
+
+                    v_set(sum, idx, approx);
                 }
-                link_i->CheckConsistency(sum, params, GlobalVars->global_params);
+                link_i->check_consistency(sum, params, GlobalVars->global_params);
 
 
-                //printf("writing ID = %u t = %e, q = %e s_p = %e\n",link_i->ID,link_i->next_save,sum.ve[0],sum.ve[1]);
+                //printf("writing ID = %u t = %e, q = %e s_p = %e\n",link_i->ID,link_i->next_save,suv_at(m, 0),sum.ve[1]);
                                 //Write to a file
                                 //fsetpos(outputfile,&(link_i->pos));
                                 //WriteStep(link_i->next_save,sum,GlobalVars,params,link_i->state,outputfile,link_i->output_user,&(link_i->pos));
@@ -759,7 +783,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
 */
 /*
                 #ifdef PRINT2DATABASE
-                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,sum.ve[0]/link_i->Q_TM,sum.ve[0]);
+                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,suv_at(m, 0)/link_i->Q_TM,suv_at(m, 0));
                     unsigned int length = strlen(conninfo->query);
                     (conninfo->submission_content) += length;
                     while(conninfo->submission_content > conninfo->submission_size)
@@ -783,7 +807,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
         }
 
         //Check if this is a max discharge
-        if (link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]))
+        if (link_i->peak_flag && (v_at(new_y, 0) > v_at(link_i->peak_value, 0)))
         {
             v_copy_n(new_y, link_i->peak_value, link_i->dim);
             link_i->peak_time = link_i->last_t;
@@ -791,7 +815,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
 
         //Check if the newest step is on a change in rainfall
         short int propagated = 0;	//Set to 1 when last_t has been propagated
-        for (j = 0; j < GlobalVars->num_forcings; j++)
+        for (unsigned int j = 0; j < GlobalVars->num_forcings; j++)
         {
             if (forcings[j].active && link_i->forcing_buff[j] && (fabs(link_i->last_t - link_i->forcing_change_times[j]) < 1e-8))
             {
@@ -801,7 +825,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
                     propagated = 1;
                     Link* next = link_i->child;
                     Link* prev = link_i;
-                    for (i = 0; i < GlobalVars->max_localorder && next != NULL; i++)
+                    for (unsigned int i = 0; i < GlobalVars->max_localorder && next != NULL; i++)
                     {
                         if (assignments[next->location] == my_rank && i < next->method->localorder)
                         {
@@ -822,14 +846,16 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
 
                 //Find the right index in rainfall
                 //for(l=1;l<link_i->forcing_buff[j]->n_times;l++)
+                unsigned int l;
                 for (l = link_i->forcing_indices[j] + 1; l < link_i->forcing_buff[j]->nrows; l++)
                     if (fabs(link_i->forcing_change_times[j] - link_i->forcing_buff[j]->data[l][0]) < 1e-8)	break;
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
+                unsigned int i;
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
                 {
                     //if(link_i->forcing_buff[j]->rainfall[i][1] != forcing_buffer)
@@ -848,12 +874,12 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
         if (propagated)	link_i->h = InitialStepSize(link_i->last_t, link_i, GlobalVars, workspace);
 
         //Free up parents' old data
-        for (i = 0; i < link_i->num_parents; i++)
+        for (unsigned int i = 0; i < link_i->num_parents; i++)
         {
             currentp = link_i->parents[i];
-            while (currentp->list->head != curr_node[i])
+            while (currentp->my->list.head != curr_node[i])
             {
-                Remove_Head_Node(currentp->list);
+                Remove_Head_Node(&currentp->my->list);
                 currentp->current_iterations--;
                 currentp->iters_removed++;
             }
@@ -864,7 +890,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         return 0;
     }
@@ -876,7 +902,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, boo
 //VEC* sum: some space for temporary calculations. Should have same dimension as number of equations.
 //VEC* temp: same as sum.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, TempStorage* workspace)
+int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int i, j, l, m, idx;
     //VEC** k;
@@ -886,10 +912,10 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
     double t_needed, timediff, theta;
 
     //Some variables to make things easier to read
-    VEC y_0 = link_i->list->tail->y_approx;
+    VEC y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2 A = link_i->method->A;
     VEC b = link_i->method->b;
     VEC c = link_i->method->c;
     unsigned int s = link_i->method->s;
@@ -897,7 +923,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
     VEC e = link_i->method->e;
     VEC d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
     const unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
@@ -905,50 +931,54 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
     unsigned int* print_indices = GlobalVars->print_indices;
     VEC temp = workspace->temp;
     VEC sum = workspace->sum;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
-    VEC* temp_k = workspace->temp_k;
+    VEC2 temp_k = workspace->temp_k;
 
     //Get the approximate solutions from each parent
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
         for (j = 0; j < s; j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j] * h, currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j) * h, currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             while (t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             theta = (t_needed - curr_node[i]->t) / timediff;
             currentp->method->dense_b(theta, currentp->method->b_theta);
 
+            VEC parent_approx = v3_slice2(workspace->temp_parent_approx, j, i);
+
             for (m = 0; m < currentp->num_dense; m++)
             {
                 idx = currentp->dense_indices[m];
-                temp_parent_approx[j][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
+                double approx = v_at(curr_node[i]->y_approx, idx);
                 for (l = 0; l < currentp->method->s; l++)
-                    temp_parent_approx[j][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                    approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+
+                v_set(parent_approx, idx, approx);
             }
 
             //Build the algebraic variable
-            currentp->CheckConsistency(temp_parent_approx[j][i], currentp->params, GlobalVars->global_params);
-            //link_i->alg(temp_parent_approx[j][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node[i]->next->state,temp_parent_approx[j][i]);
-            if (currentp->alg)	currentp->alg(temp_parent_approx[j][i], GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->state, currentp->user, temp_parent_approx[j][i]);
+            currentp->check_consistency(parent_approx, currentp->params, GlobalVars->global_params);
+            //link_i->algebraic(temp_parent_approx[j][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node[i]->next->state,temp_parent_approx[j][i]);
+            if (currentp->algebraic)
+                currentp->algebraic(parent_approx, GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->state, currentp->user, parent_approx);
         }
     }
 
     //Do the RK method to get the next approximation
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     //k = new_node->k;
     new_y = new_node->y_approx;
@@ -956,33 +986,35 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
     //Compute the k's
     for (i = 0; i < s; i++)
     {
+        VEC2 parent_approx = v3_slice(workspace->temp_parent_approx, i);
+
         v_copy_n(y_0, sum, link_i->dim);
         for (j = 0; j < i; j++)
-            daxpy_u(h*A.me[i][j], temp_k[j], sum, 1, link_i->dim);
-        link_i->CheckConsistency(sum, params, GlobalVars->global_params);
-        link_i->f(t + c.ve[i] * h, sum, temp_parent_approx[i], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp_k[i]);
+            daxpy_u(h * v2_at(A, i, j), v2_slice(temp_k, j), sum, 1, link_i->dim);
+        link_i->check_consistency(sum, params, GlobalVars->global_params);
+        link_i->differential(t + v_at(c, i) * h, sum, parent_approx, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, v2_slice(temp_k, i));
     }
 
     //Build the solution
     v_copy_n(y_0, new_y, link_i->dim);
     for (i = 0; i < s; i++)
-        daxpy_u(h*b.ve[i], temp_k[i], new_y, 1, link_i->dim);
+        daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 1, link_i->dim);
     //new_node->state = 0;
     new_node->state = link_i->state_check(new_y, GlobalVars->global_params, params, link_i->qvs, link_i->dam);
-    link_i->CheckConsistency(new_y, params, GlobalVars->global_params);
-    link_i->alg(new_y, GlobalVars->global_params, params, link_i->qvs, new_node->state, link_i->user, new_y);
+    link_i->check_consistency(new_y, params, GlobalVars->global_params);
+    link_i->algebraic(new_y, GlobalVars->global_params, params, link_i->qvs, new_node->state, link_i->user, new_y);
 
     //Error estimation and step size selection
 
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
     double err_1;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * e.ve[0], sum, 1, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*e.ve[i], temp_k[i], sum, 1, link_i->dim);
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(e, 0), sum, 1, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(e, i), v2_slice(temp_k, i), sum, 1, link_i->dim);
 
     //Build SC_i
     for (i = 1; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol, i) + v_at(error->abstol, i)));
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,1);
     err_1 = norm_inf_u(sum, temp, 1, link_i->dim);
@@ -990,12 +1022,12 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
 
     //Check the dense error (in inf norm) to determine if the step can be accepted
     double err_d;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * d.ve[0], sum, 1, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*d.ve[i], temp_k[i], sum, 1, link_i->dim);
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(d, 0), sum, 1, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(d, i), v2_slice(temp_k, i), sum, 1, link_i->dim);
 
     for (i = 1; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol_dense, i) + v_at(error->abstol_dense, i)));
 
     err_d = norm_inf_u(sum, temp, 1, link_i->dim);
     double value_d = pow(1.0 / err_d, 1.0 / meth->d_order);
@@ -1044,7 +1076,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
                     break;
                 }
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 theta = (link_i->next_save - t) / h;
                 link_i->method->dense_b(theta, link_i->method->b_theta);
 
@@ -1054,12 +1086,14 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
                 for (m = 0; m < num_dense; m++)
                 {
                     idx = dense_indices[m];
-                    sum.ve[idx] = node->y_approx.ve[idx];
+                    double approx = v_at(node->y_approx, idx);
                     for (l = 0; l < link_i->method->s; l++)
-                        sum.ve[idx] += h*link_i->method->b_theta.ve[l] * node->next->k[l].ve[m];
+                        approx += h * v_at(link_i->method->b_theta, l) * v2_at(node->next->k, l, m);
+
+                    v_set(sum, idx, approx);
                 }
-                link_i->alg(sum, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->list->tail->state, link_i->user, sum);
-                link_i->CheckConsistency(sum, params, GlobalVars->global_params);
+                link_i->algebraic(sum, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->my->list.tail->state, link_i->user, sum);
+                link_i->check_consistency(sum, params, GlobalVars->global_params);
 
                 //Write to a file
                 //fsetpos(outputfile,&(link_i->pos));
@@ -1076,7 +1110,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
 
 /*
                 #ifdef PRINT2DATABASE
-                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,sum.ve[0]/link_i->Q_TM,sum.ve[0]);
+                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,suv_at(m, 0)/link_i->Q_TM,suv_at(m, 0));
                     unsigned int length = strlen(conninfo->query);
                     (conninfo->submission_content) += length;
                     while(conninfo->submission_content > conninfo->submission_size)
@@ -1100,7 +1134,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
         }
 
         //Check if this is a max discharge
-        if (link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]))
+        if (link_i->peak_flag && (v_at(new_y, 0) > v_at(link_i->peak_value, 0)))
         {
             v_copy_n(new_y, link_i->peak_value, link_i->dim);
             link_i->peak_time = link_i->last_t;
@@ -1144,7 +1178,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
@@ -1168,9 +1202,9 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
         for (i = 0; i < link_i->num_parents; i++)
         {
             currentp = link_i->parents[i];
-            while (currentp->list->head != curr_node[i])
+            while (currentp->my->list.head != curr_node[i])
             {
-                Remove_Head_Node(currentp->list);
+                Remove_Head_Node(&currentp->my->list);
                 currentp->current_iterations--;
                 currentp->iters_removed++;
             }
@@ -1181,7 +1215,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         return 0;
     }
@@ -1194,7 +1228,7 @@ int ExplicitRKIndex1Solver(Link* link_i, GlobalVars* GlobalVars, int* assignment
 //VEC* sum: some space for temporary calculations. Should have same dimension as number of equations.
 //VEC* temp: same as sum.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, TempStorage* workspace)
+int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int i, j, l, m, idx;
     VEC new_y;
@@ -1203,10 +1237,10 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
     double t_needed, timediff, current_theta;
 
     //Some variables to make things easier to read
-    VEC y_0 = link_i->list->tail->y_approx;
+    VEC y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2 A = link_i->method->A;
     VEC b = link_i->method->b;
     VEC c = link_i->method->c;
     unsigned int s = link_i->method->s;
@@ -1214,7 +1248,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
     VEC e = link_i->method->e;
     VEC d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
     const unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
@@ -1222,30 +1256,31 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
     unsigned int* print_indices = GlobalVars->print_indices;
     VEC temp = workspace->temp;
     VEC sum = workspace->sum;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
-    VEC* temp_k = workspace->temp_k;
+    VEC2 temp_k = workspace->temp_k;
 
     //Get the approximate solutions from each parent
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
         for (j = 0; j < s; j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j] * h, currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j) * h, currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             while (t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed - curr_node[i]->t) / timediff;
             currentp->method->dense_b(current_theta, currentp->method->b_theta);
+
+            VEC parent_approx = v3_slice2(workspace->temp_parent_approx, j, i);
 
             //v_copy(curr_node[i]->y_approx,temp_parent_approx[j][i]);
             //for(l=0;l<currentp->method->s;l++)
@@ -1253,22 +1288,25 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
             for (m = 0; m < currentp->num_dense; m++)
             {
                 idx = currentp->dense_indices[m];
-                temp_parent_approx[j][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
+                double approx = v_at(curr_node[i]->y_approx, idx);
                 for (l = 0; l < currentp->method->s; l++)
-                    temp_parent_approx[j][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                    approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+
+                v_set(parent_approx, idx, approx);
             }
 
             //Build the algebraic variable
-            currentp->CheckConsistency(temp_parent_approx[j][i], currentp->params, GlobalVars->global_params);
-            //link_i->alg(temp_parent_approx[j][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node[i]->next->state,temp_parent_approx[j][i]);
-            if (currentp->alg)	currentp->alg(temp_parent_approx[j][i], GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->state, currentp->user, temp_parent_approx[j][i]);
+            currentp->check_consistency(parent_approx, currentp->params, GlobalVars->global_params);
+            //link_i->algebraic(temp_parent_approx[j][i],GlobalVars->global_params,currentp->params,currentp->qvs,curr_node[i]->next->state,temp_parent_approx[j][i]);
+            if (currentp->algebraic)
+                currentp->algebraic(parent_approx, GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->state, currentp->user, parent_approx);
         }
     }
 
     //Do the RK method to get the next approximation
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     //k = new_node->k;
     new_y = new_node->y_approx;
@@ -1278,29 +1316,29 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
     {
         v_copy_n(y_0, sum, link_i->dim);
         for (j = 0; j < i; j++)
-            daxpy_u(h*A.me[i][j], temp_k[j], sum, 1, link_i->dim);
-        link_i->CheckConsistency(sum, params, GlobalVars->global_params);
-        link_i->f(t + c.ve[i] * h, sum, temp_parent_approx[i], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp_k[i]);
+            daxpy_u(h * v2_at(A, i, j), v2_slice(temp_k, j), sum, 1, link_i->dim);
+        link_i->check_consistency(sum, params, GlobalVars->global_params);
+        link_i->differential(t + v_at(c, i) * h, sum, v3_slice(workspace->temp_parent_approx, i), GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, v2_slice(temp_k, i));
     }
 
     //Build the solution
     v_copy_n(y_0, new_y, link_i->dim);
-    for (i = 0; i < s; i++)	daxpy_u(h*b.ve[i], temp_k[i], new_y, 1, link_i->dim);
-    link_i->CheckConsistency(new_y, params, GlobalVars->global_params);
+    for (i = 0; i < s; i++)	daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 1, link_i->dim);
+    link_i->check_consistency(new_y, params, GlobalVars->global_params);
     new_node->state = link_i->state_check(new_y, GlobalVars->global_params, params, link_i->qvs, link_i->dam);
-    link_i->alg(new_y, GlobalVars->global_params, params, link_i->qvs, new_node->state, link_i->user, new_y);
+    link_i->algebraic(new_y, GlobalVars->global_params, params, link_i->qvs, new_node->state, link_i->user, new_y);
 
     //Error estimation and step size selection
 
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
     double err_1;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * e.ve[0], sum, 1, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*e.ve[i], temp_k[i], sum, 1, link_i->dim);
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(e, 0), sum, 1, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(e, i), v2_slice(temp_k, i), sum, 1, link_i->dim);
 
     //Build SC_i
-    for (i = 1; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+    for (i = 1; i < dim; i++)        
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol, i) + v_at(error->abstol, i)));
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,1);
     err_1 = norm_inf_u(sum, temp, 1, link_i->dim);
@@ -1309,12 +1347,12 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
 
     //Check the dense error (in inf norm) to determine if the step can be accepted
     double err_d;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * d.ve[0], sum, 1, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*d.ve[i], temp_k[i], sum, 1, link_i->dim);
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(d, 0), sum, 1, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(d, i), v2_slice(temp_k, i), sum, 1, link_i->dim);
 
     for (i = 1; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol_dense, i) + v_at(error->abstol_dense, i)));
 
     //err_d = norm_inf(sum,temp,meth->d_order_ratio,1);
     err_d = norm_inf_u(sum, temp, 1, link_i->dim);
@@ -1379,14 +1417,15 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
 
                 //Form the derivative of the interpolant
                 meth->dense_bderiv(1.0, meth->b_theta_deriv);
-                for (i = 0; i < dim; i++)	sum.ve[i] = 0.0;
-                for (i = 0; i < s; i++)	daxpy_u(h*meth->b_theta_deriv.ve[i], temp_k[i], sum, 0, link_i->dim);
+                v_zero(sum);
+                for (i = 0; i < s; i++)
+                    daxpy_u(h * v_at(meth->b_theta_deriv, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
 
                 //Get the approximate solutions from each parent
                 for (i = 0; i < link_i->num_parents; i++)
                 {
                     currentp = link_i->parents[i];
-                    curr_node[i] = currentp->list->head;
+                    curr_node[i] = currentp->my->list.head;
 
                     //Find the needed value of t and corresponding node for y_p
                     //Assuming everything needed is already calculated
@@ -1396,25 +1435,30 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                     //Find the corresponding theta value and approximate solution
                     while (t_needed > curr_node[i]->t)
                         curr_node[i] = curr_node[i]->next;
-                    if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+                    if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
                     timediff = curr_node[i]->next->t - curr_node[i]->t;
                     current_theta = (t_needed - curr_node[i]->t) / timediff;
                     currentp->method->dense_b(current_theta, currentp->method->b_theta);
 
+                    VEC parent_approx = v3_slice2(workspace->temp_parent_approx, 0, i);
+
                     for (m = 0; m < currentp->num_dense; m++)
                     {
                         idx = currentp->dense_indices[m];
-                        temp_parent_approx[0][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
+                        double approx = v_at(curr_node[i]->y_approx, idx);
                         for (l = 0; l < currentp->method->s; l++)
-                            temp_parent_approx[0][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                            approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+
+                        v_set(parent_approx, idx, approx);
                     }
 
-                    if (currentp->alg)	currentp->alg(temp_parent_approx[0][i], GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->next->state, currentp->user, temp_parent_approx[0][i]);
+                    if (currentp->algebraic)
+                        currentp->algebraic(parent_approx, GlobalVars->global_params, currentp->params, currentp->qvs, curr_node[i]->next->state, currentp->user, parent_approx);
                 }
 
                 //Exact derivative at time t + h
-                link_i->f(t + h, new_y, temp_parent_approx[0], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp);
+                link_i->differential(t + h, new_y, v3_slice(workspace->temp_parent_approx, 0), GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp);
 
                 //Form the defect for a stopping criteria
                 v_sub(sum, temp, temp, 1);
@@ -1431,8 +1475,10 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                     v_copy_n(y_0, sum, link_i->dim);
                     current_theta = (xm - t) / h;
                     meth->dense_b(current_theta, meth->b_theta);
-                    for (i = 0; i < s; i++)	daxpy_u(h*meth->b_theta.ve[i], temp_k[i], sum, 1, link_i->dim);
-                    link_i->alg(sum, GlobalVars->global_params, link_i->params, link_i->qvs, new_node->state, link_i->user, sum);
+                    for (i = 0; i < s; i++)
+                        daxpy_u(h * v_at(meth->b_theta, i), v2_slice(temp_k, i), sum, 1, link_i->dim);
+                    
+                    link_i->algebraic(sum, GlobalVars->global_params, link_i->params, link_i->qvs, new_node->state, link_i->user, sum);
                     sign_m = link_i->state_check(sum, GlobalVars->global_params, params, link_i->qvs, link_i->dam);
 
                     if (sign_l != sign_m)
@@ -1458,7 +1504,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                 {
                     //Prepare to step on the time of the discontinuity next iteration
                     link_i->h = xh - t;
-                    Undo_Step(link_i->list);
+                    Undo_Step(&link_i->my->list);
 
                     return 2;
                 }
@@ -1469,7 +1515,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
 
                     //Cut the step size and redo the iteration
                     link_i->h = h * 0.5;
-                    Undo_Step(link_i->list);
+                    Undo_Step(&link_i->my->list);
 
                     return 0;
                 }
@@ -1509,7 +1555,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                     break;
                 }
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 current_theta = (link_i->next_save - t) / h;
                 link_i->method->dense_b(current_theta, link_i->method->b_theta);
 
@@ -1519,12 +1565,14 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                 for (m = 0; m < num_dense; m++)
                 {
                     idx = dense_indices[m];
-                    sum.ve[idx] = node->y_approx.ve[idx];
+                    double approx = v_at(node->y_approx, idx);
                     for (l = 0; l < link_i->method->s; l++)
-                        sum.ve[idx] += h*link_i->method->b_theta.ve[l] * node->next->k[l].ve[m];
+                        approx += h * v_at(link_i->method->b_theta, l) * v2_at(node->next->k, l, m);
+
+                    v_set(sum, idx, approx);
                 }
-                link_i->alg(sum, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->list->tail->state, link_i->user, sum);
-                link_i->CheckConsistency(sum, params, GlobalVars->global_params);
+                link_i->algebraic(sum, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->my->list.tail->state, link_i->user, sum);
+                link_i->check_consistency(sum, params, GlobalVars->global_params);
 
                 //Write to a file
                 //fsetpos(outputfile,&(link_i->pos));
@@ -1540,7 +1588,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
 */
 /*
                 #ifdef PRINT2DATABASE
-                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,sum.ve[0]/link_i->Q_TM,sum.ve[0]);
+                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,suv_at(m, 0)/link_i->Q_TM,suv_at(m, 0));
                     unsigned int length = strlen(conninfo->query);
                     (conninfo->submission_content) += length;
                     while(conninfo->submission_content > conninfo->submission_size)
@@ -1564,7 +1612,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
         }
 
         //Check if this is a max discharge
-        if (link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]))
+        if (link_i->peak_flag && (v_at(new_y, 0) > v_at(link_i->peak_value, 0)))
         {
             v_copy_n(new_y, link_i->peak_value, link_i->dim);
             link_i->peak_time = link_i->last_t;
@@ -1608,7 +1656,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
@@ -1632,9 +1680,9 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
         for (i = 0; i < link_i->num_parents; i++)
         {
             currentp = link_i->parents[i];
-            while (currentp->list->head != curr_node[i])
+            while (currentp->my->list.head != curr_node[i])
             {
-                Remove_Head_Node(currentp->list);
+                Remove_Head_Node(&currentp->my->list);
                 currentp->current_iterations--;
                 currentp->iters_removed++;
             }
@@ -1645,7 +1693,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         return 0;
     }
@@ -1659,7 +1707,7 @@ int ExplicitRKIndex1SolverDam(Link* link_i, GlobalVars* GlobalVars, int* assignm
 //VEC* sum: some space for temporary calculations. Should have same dimension as number of equations.
 //VEC* temp: same as sum.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, TempStorage* workspace)
+int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int i, j, l, m, idx;
     VEC new_y;
@@ -1668,10 +1716,10 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
     double t_needed, timediff, current_theta;
 
     //Some variables to make things easier to read
-    VEC y_0 = link_i->list->tail->y_approx;
+    VEC y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2 A = link_i->method->A;
     VEC b = link_i->method->b;
     VEC c = link_i->method->c;
     unsigned int s = link_i->method->s;
@@ -1679,7 +1727,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
     VEC e = link_i->method->e;
     VEC d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
     const unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
@@ -1687,30 +1735,31 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
     unsigned int* print_indices = GlobalVars->print_indices;
     VEC temp = workspace->temp;
     VEC sum = workspace->sum;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
-    VEC* temp_k = workspace->temp_k;
+    VEC2 temp_k = workspace->temp_k;
 
     //Get the approximate solutions from each parent
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
         for (j = 0; j < s; j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j] * h, currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j) * h, currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             while (t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed - curr_node[i]->t) / timediff;
             currentp->method->dense_b(current_theta, currentp->method->b_theta);
+
+            VEC parent_approx = v3_slice2(workspace->temp_parent_approx, j, i);
 
             //v_copy(curr_node[i]->y_approx,temp_parent_approx[j][i]);
             //for(l=0;l<currentp->method->s;l++)
@@ -1718,20 +1767,22 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
             for (m = 0; m < currentp->num_dense; m++)
             {
                 idx = currentp->dense_indices[m];
-                temp_parent_approx[j][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
+                double approx = v_at(curr_node[i]->y_approx, idx);
                 for (l = 0; l < currentp->method->s; l++)
-                    temp_parent_approx[j][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                    approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+
+                v_set(parent_approx, idx, approx);
             }
 
             //Build the algebraic variable
-            currentp->CheckConsistency(temp_parent_approx[j][i], currentp->params, GlobalVars->global_params);
+            currentp->check_consistency(parent_approx, currentp->params, GlobalVars->global_params);
         }
     }
 
     //Do the RK method to get the next approximation
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     //k = new_node->k;
     new_y = new_node->y_approx;
@@ -1741,28 +1792,28 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
     {
         v_copy_n(y_0, sum, link_i->dim);
         for (j = 0; j < i; j++)
-            daxpy_u(h*A.me[i][j], temp_k[j], sum, 0, link_i->dim);
-        link_i->CheckConsistency(sum, params, GlobalVars->global_params);
-        link_i->f(t + c.ve[i] * h, sum, temp_parent_approx[i], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp_k[i]);
+            daxpy_u(h * v2_at(A, i, j), v2_slice(temp_k, j), sum, 0, link_i->dim);
+        link_i->check_consistency(sum, params, GlobalVars->global_params);
+        link_i->differential(t + v_at(c, i) * h, sum, v3_slice(workspace->temp_parent_approx, i), GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, v2_slice(temp_k, i));
     }
 
     //Build the solution
     v_copy_n(y_0, new_y, link_i->dim);
-    for (i = 0; i < s; i++)	daxpy_u(h*b.ve[i], temp_k[i], new_y, 0, link_i->dim);
-    link_i->CheckConsistency(new_y, params, GlobalVars->global_params);
+    for (i = 0; i < s; i++)	daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 0, link_i->dim);
+    link_i->check_consistency(new_y, params, GlobalVars->global_params);
     new_node->state = link_i->state_check(new_y, GlobalVars->global_params, params, link_i->qvs, link_i->dam);
 
     //Error estimation and step size selection
 
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
     double err_1;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * e.ve[0], sum, 0, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*e.ve[i], temp_k[i], sum, 0, link_i->dim);
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(e, 0), sum, 0, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(e, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
 
     //Build SC_i
     for (i = 0; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol, i) + v_at(error->abstol, i)));
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,1);
     err_1 = norm_inf_u(sum, temp, 0, link_i->dim);
@@ -1771,11 +1822,11 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
 
     //Check the dense error (in inf norm) to determine if the step can be accepted
     double err_d;
-    v_copy_n(temp_k[0], sum, link_i->dim);
-    sv_mlt_u(h * d.ve[0], sum, 0, link_i->dim);
-    for (i = 1; i < s; i++)	daxpy_u(h*d.ve[i], temp_k[i], sum, 0, link_i->dim);
-    for (i = 0; i < dim; i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]), fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+    v_copy_n(v2_slice(temp_k, 0), sum, link_i->dim);
+    sv_mlt_u(h * v_at(d, 0), sum, 0, link_i->dim);
+    for (i = 1; i < s; i++)	daxpy_u(h*v_at(d, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
+    for (i = 0; i < dim; i++)        
+        v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * v_at(error->reltol_dense, i) + v_at(error->abstol_dense, i)));
 
     //err_d = norm_inf(sum,temp,meth->d_order_ratio,1);
     err_d = norm_inf_u(sum, temp, 0, link_i->dim);
@@ -1840,14 +1891,15 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
 
                 //Form the derivative of the interpolant
                 meth->dense_bderiv(1.0, meth->b_theta_deriv);
-                for (i = 0; i < dim; i++)	sum.ve[i] = 0.0;
-                for (i = 0; i < s; i++)	daxpy_u(h*meth->b_theta_deriv.ve[i], temp_k[i], sum, 0, link_i->dim);
+                v_zero(sum);
+                for (i = 0; i < s; i++)
+                    daxpy_u(h * v_at(meth->b_theta_deriv, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
 
                 //Get the approximate solutions from each parent
                 for (i = 0; i < link_i->num_parents; i++)
                 {
                     currentp = link_i->parents[i];
-                    curr_node[i] = currentp->list->head;
+                    curr_node[i] = currentp->my->list.head;
 
                     //Find the needed value of t and corresponding node for y_p
                     //Assuming everything needed is already calculated
@@ -1857,23 +1909,27 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                     //Find the corresponding theta value and approximate solution
                     while (t_needed > curr_node[i]->t)
                         curr_node[i] = curr_node[i]->next;
-                    if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+                    if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
                     timediff = curr_node[i]->next->t - curr_node[i]->t;
                     current_theta = (t_needed - curr_node[i]->t) / timediff;
                     currentp->method->dense_b(current_theta, currentp->method->b_theta);
 
+                    VEC parent_approx = v3_slice2(workspace->temp_parent_approx, 0, i);
+
                     for (m = 0; m < currentp->num_dense; m++)
                     {
                         idx = currentp->dense_indices[m];
-                        temp_parent_approx[0][i].ve[idx] = curr_node[i]->y_approx.ve[idx];
+                        double approx  = v_at(curr_node[i]->y_approx, idx);
                         for (l = 0; l < currentp->method->s; l++)
-                            temp_parent_approx[0][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
+                            approx += timediff * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
+
+                        v_set(parent_approx, idx, approx);
                     }
                 }
 
                 //Exact derivative at time t + h
-                link_i->f(t + h, new_y, temp_parent_approx[0], link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp);
+                link_i->differential(t + h, new_y, v3_slice(workspace->temp_parent_approx, 0), GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, temp);
 
                 //Form the defect for a stopping criteria
                 v_sub(sum, temp, temp, 0);
@@ -1890,7 +1946,8 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                     v_copy_n(y_0, sum, link_i->dim);
                     current_theta = (xm - t) / h;
                     meth->dense_b(current_theta, meth->b_theta);
-                    for (i = 0; i < s; i++)	daxpy_u(h*meth->b_theta.ve[i], temp_k[i], sum, 0, link_i->dim);
+                    for (i = 0; i < s; i++)
+                        daxpy_u(h * v_at(meth->b_theta, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
                     sign_m = link_i->state_check(sum, GlobalVars->global_params, params, link_i->qvs, link_i->dam);
 
                     if (sign_l != sign_m)
@@ -1916,7 +1973,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                 {
                     //Prepare to step on the time of the discontinuity next iteration
                     link_i->h = xh - t;
-                    Undo_Step(link_i->list);
+                    Undo_Step(&link_i->my->list);
 
                     return 2;
                 }
@@ -1927,7 +1984,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
 
                     //Cut the step size and redo the iteration
                     link_i->h = h * 0.5;
-                    Undo_Step(link_i->list);
+                    Undo_Step(&link_i->my->list);
 
                     return 0;
                 }
@@ -1967,7 +2024,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                     break;
                 }
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 current_theta = (link_i->next_save - t) / h;
                 link_i->method->dense_b(current_theta, link_i->method->b_theta);
 
@@ -1977,11 +2034,13 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                 for (m = 0; m < num_dense; m++)
                 {
                     idx = dense_indices[m];
-                    sum.ve[idx] = node->y_approx.ve[idx];
+                    double approx = v_at(node->y_approx, idx);
                     for (l = 0; l < link_i->method->s; l++)
-                        sum.ve[idx] += h*link_i->method->b_theta.ve[l] * node->next->k[l].ve[m];
+                        approx += h * v_at(link_i->method->b_theta, l) * v2_at(node->next->k, l, m);
+
+                    v_set(sum, idx, approx);
                 }
-                link_i->CheckConsistency(sum, params, GlobalVars->global_params);
+                link_i->check_consistency(sum, params, GlobalVars->global_params);
 
                 //Write to a file
                 //fsetpos(outputfile,&(link_i->pos));
@@ -1997,7 +2056,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
 */
 /*
                 #ifdef PRINT2DATABASE
-                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,sum.ve[0]/link_i->Q_TM,sum.ve[0]);
+                    sprintf(conninfo->query,"%i,%u,%.12e,%.12e\n",link_i->ID,(unsigned int)(link_i->next_save * 60.0) + conninfo->time_offset,suv_at(m, 0)/link_i->Q_TM,suv_at(m, 0));
                     unsigned int length = strlen(conninfo->query);
                     (conninfo->submission_content) += length;
                     while(conninfo->submission_content > conninfo->submission_size)
@@ -2020,7 +2079,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
         }
 
         //Check if this is a max discharge
-        if (link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]))
+        if (link_i->peak_flag && (v_at(new_y, 0) > v_at(link_i->peak_value, 0)))
         {
             v_copy_n(new_y, link_i->peak_value, link_i->dim);
             link_i->peak_time = link_i->last_t;
@@ -2064,7 +2123,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
@@ -2088,9 +2147,9 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
         for (i = 0; i < link_i->num_parents; i++)
         {
             currentp = link_i->parents[i];
-            while (currentp->list->head != curr_node[i])
+            while (currentp->my->list.head != curr_node[i])
             {
-                Remove_Head_Node(currentp->list);
+                Remove_Head_Node(&currentp->my->list);
                 currentp->current_iterations--;
                 currentp->iters_removed++;
             }
@@ -2101,24 +2160,21 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         return 0;
     }
 }
 
 
+#if defined(ASYNCH_HAVE_IMPLICIT_SOLVER)
 
-
-
-
-/*
 //Computes one step of an implicit RK method to solve the ODE at a link. Assumes parents have enough computed solutions.
 //Link* link_i: the link to apply a numerical method to.
 //VEC* sum: some space for temporary calculations. Should have same dimension as number of equations.
 //VEC* temp: same as sum.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_flag,FILE* outputfile,ConnData* conninfo,Forcing* forcings,TempStorage* workspace)
+int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_flag,FILE* outputfile,ConnData* conninfo,Forcing* forcings,Workspace* workspace)
 {
     unsigned int i,j,l,m;
     VEC** k;
@@ -2128,10 +2184,10 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     double t_needed,timediff,current_theta;
 
     //Some variables to make things easier to read
-    VEC* y_0 = link_i->list->tail->y_approx;
+    VEC* y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT* A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2* A = link_i->method->A;
     VEC* b = link_i->method->b;
     VEC* c = link_i->method->c;
     unsigned int s = link_i->method->s;
@@ -2139,7 +2195,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     VEC* e = link_i->method->e;
     VEC* d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = link_i->error_data;
     const unsigned int dim = link_i->dim;
     VEC* temp = workspace->temp;
     VEC* sum = workspace->sum;
@@ -2149,7 +2205,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     for(i=0;i<link_i->num_parents;i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
 
         //Find the needed value of t_0 and corresponding node for y_p for the extra stage
         t_needed = t;
@@ -2157,7 +2213,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         //Find the corresponding theta value and approximate solution
         while(t_needed > curr_node[i]->t)
             curr_node[i] = curr_node[i]->next;
-        if(curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+        if(curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
         timediff = curr_node[i]->next->t - curr_node[i]->t;
         current_theta = (t_needed-curr_node[i]->t)/timediff;
@@ -2169,19 +2225,19 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
 
         //currentp = link_i->parents[i];
-        //curr_node[i] = currentp->list->head;
+        //curr_node[i] = currentp->my->list.head;
         for(j=0;j<s;j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j]*h,currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j)*h,currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             while(t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if(curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if(curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed-curr_node[i]->t)/timediff;
@@ -2199,10 +2255,10 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     int info;
     int* ipiv = workspace->ipiv;
     VEC* RHS = workspace->RHS;
-//	MAT* CoefMat = workspace->CoefMat;
-    MAT* CoefMat = link_i->CoefMat;
-//	MAT* JMatrix = workspace->JMatrix;
-    MAT* tempmat = workspace->JMatrix;
+//	VEC2* CoefMat = workspace->CoefMat;
+    VEC2* CoefMat = link_i->CoefMat;
+//	VEC2* JMatrix = workspace->JMatrix;
+    VEC2* tempmat = workspace->JMatrix;
     VEC** Z_i = workspace->Z_i;
     VEC** old_Z = link_i->Z_i;
     VEC* err = workspace->err;
@@ -2221,9 +2277,9 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     {
         for(i=0;i<s;i++)
         {
-            lagrange_bary(1.0 + h/link_i->h_old*c.ve[i],c,old_Z,meth->w,Z_i[i]);
+            lagrange_bary(1.0 + h/link_i->h_old*v_at(c, i),c,old_Z,meth->w,Z_i[i]);
             v_add(Z_i[i],link_i->sol_diff,Z_i[i],0);
-            if(Z_i[i].ve[0] + y_0.ve[0] < 0.0)	Z_i[i].ve[0] = 0.0 - y_0.ve[0];
+            if(Z_i[i].ve[0] + y_v_at(0, 0) < 0.0)	Z_i[i].ve[0] = 0.0 - y_v_at(0, 0);
             if(dim > 1 && Z_i[i].ve[1] + y_0.ve[1] < 0.0)	Z_i[i].ve[1] = -y_0.ve[1];
             if(dim > 2 && Z_i[i].ve[2] + y_0.ve[2] < 0.0)	Z_i[i].ve[2] = -y_0.ve[2];
             if(dim > 2 && Z_i[i].ve[2] + y_0.ve[2] > 1.0)	Z_i[i].ve[2] = 1.0 - y_0.ve[2] - 0.0;
@@ -2234,7 +2290,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
     //Build the coefficient matrix, if necessary
     if(link_i->compute_J == 1)
-        link_i->Jacobian(t,y_0,temp_parent_approx[s],link_i->num_parents,GlobalVars,link_i->forcing_values,params,link_i->JMatrix);
+        link_i->jacobian(t,y_0,temp_parent_approx[s],link_i->num_parents,GlobalVars,link_i->forcing_values,params,link_i->JMatrix);
 
     if(link_i->compute_LU == 1)
     {
@@ -2258,13 +2314,13 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         for(j=0;j<s;j++)
         {
             v_add(y_0,Z_i[j],sum,0);
-            if(sum.ve[0] < 0.0)	sum.ve[0] = 0.0;	//A negative discharge is clearly a poor approximation
+            if(suv_at(m, 0) < 0.0)	suv_at(m, 0) = 0.0;	//A negative discharge is clearly a poor approximation
             if(dim > 1 && sum.ve[1] < 0.0)	sum.ve[1] = 0.0;
             if(dim > 2 && sum.ve[2] < 0.0)	sum.ve[2] = 0.0;
             if(dim > 2 && sum.ve[2] > 1.0)	sum.ve[2] = 1.0;
             if(dim > 3 && sum.ve[3] < 0.0)	sum.ve[3] = 0.0;
             if(dim > 3 && sum.ve[3] > 1.0 - sum.ve[2])	sum.ve[3] = 1.0 - sum.ve[2];
-            link_i->f(t+c.ve[j]*h,sum,temp_parent_approx[j],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,temp);
+            link_i->f(t+v_at(c, j)*h,sum,temp_parent_approx[j],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,temp);
             for(l=0;l<s;l++)
                 daxpy(h*A.me[l][j],temp,RHS,l*dim);
         }
@@ -2272,7 +2328,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         //Make sure RHS has valid values
         for(j=0;j<s;j++)
         {
-            if(RHS.ve[j*dim] + (y_0.ve[0] + Z_i[j].ve[0]) < 0.0)	RHS.ve[j*dim] = -(y_0.ve[0] + Z_i[j].ve[0]);
+            if(RHS.ve[j*dim] + (y_v_at(0, 0) + Z_i[j].ve[0]) < 0.0)	RHS.ve[j*dim] = -(y_v_at(0, 0) + Z_i[j].ve[0]);
             if(dim > 1 && RHS.ve[j*dim + 1] + (y_0.ve[1] + Z_i[j].ve[1]) < 0.0)	RHS.ve[j*dim + 1] = -(y_0.ve[1] + Z_i[j].ve[1]);
             if(dim > 2 && RHS.ve[j*dim + 2] + (y_0.ve[2] + Z_i[j].ve[2]) < 0.0)	RHS.ve[j*dim + 2] = -(y_0.ve[2] + Z_i[j].ve[2]);
             if(dim > 2 && RHS.ve[j*dim + 2] + (y_0.ve[2] + Z_i[j].ve[2]) > 1.0)	RHS.ve[j*dim + 2] = 1.0 -(y_0.ve[2] + Z_i[j].ve[2]);
@@ -2289,7 +2345,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         //Make sure Z_i has valid values
         for(j=0;j<s;j++)
         {
-            if(Z_i[j].ve[0] + y_0.ve[0] < 0.0)	Z_i[j].ve[0] = 0.0 - y_0.ve[0];
+            if(Z_i[j].ve[0] + y_v_at(0, 0) < 0.0)	Z_i[j].ve[0] = 0.0 - y_v_at(0, 0);
             if(dim > 1 && Z_i[j].ve[1] + y_0.ve[1] < 0.0)	Z_i[j].ve[1] = -y_0.ve[1];
             if(dim > 2 && Z_i[j].ve[2] + y_0.ve[2] < 0.0)	Z_i[j].ve[2] = -y_0.ve[2];
             if(dim > 2 && Z_i[j].ve[2] + y_0.ve[2] > 1.0)	Z_i[j].ve[2] = 1.0 - y_0.ve[2] - 0.0;
@@ -2325,21 +2381,21 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     else
         link_i->last_eta = pow(eta,.8);
 
-    //Check if Jacobian should be recomputed
+    //Check if jacobian should be recomputed
     if(normDeltam1 < 0.0 || Theta < 1e-3)
         link_i->compute_J = 0;
     else
         link_i->compute_J = 1;
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     k = new_node->k;
     new_y = new_node->y_approx;
 
     //Build the solution
     v_add(y_0,Z_i[s-1],new_y,0);
-    if(new_y.ve[0] < 0.0)	new_y.ve[0] = 1e-15;	//A negative discharge is clearly a poor approximation
+    if(new_v_at(y, 0) < 0.0)	new_v_at(y, 0) = 1e-15;	//A negative discharge is clearly a poor approximation
     if(dim > 1 && new_y.ve[1] < 0.0)	new_y.ve[1] = 0.0;
     if(dim > 2 && new_y.ve[2] < 0.0)	new_y.ve[2] = 0.0;
     if(dim > 2 && new_y.ve[2] > 1.0)	new_y.ve[2] = 1.0 - 1e-15;
@@ -2354,8 +2410,8 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
     //Build err for y_1
     v_copy(Z_i[0],sum);
-    sv_mlt(e.ve[0],sum,0);
-    for(i=1;i<s;i++)	daxpy(e.ve[i],Z_i[i],sum,0);
+    sv_mlt(v_at(e, 0),sum,0);
+    for(i=1;i<s;i++)	daxpy(v_at(e, i),Z_i[i],sum,0);
     v_copy(sum,err);
     link_i->f(t,y_0,temp_parent_approx[s],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,temp);	//Compute the extra k
     daxpy(h*e.ve[s],temp,err,0);	//Extra k
@@ -2372,7 +2428,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
     //Build SC_i for y_1
     for(i=0;i<dim;i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]),fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+        temv_at(p, i) = max(fabs(new_v_at(y, i)),fabs(y_v_at(0, i))) * error->reltov_at(l, i) + error->abstov_at(l, i);
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,0);
     double err_1 = norm_inf(err,temp,1.0,0);
@@ -2380,8 +2436,8 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
     //Build err for dense output
 //	v_copy(Z_i[0],sum);
-//	sv_mlt(d.ve[0],sum,0);
-//	for(i=1;i<s;i++)	daxpy(d.ve[i],Z_i[i],sum,0);
+//	sv_mlt(v_at(d, 0),sum,0);
+//	for(i=1;i<s;i++)	daxpy(v_at(d, i),Z_i[i],sum,0);
 //	v_copy(sum,err);
 //	link_i->f(t,y_0,temp_parent_approx[s],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->user,temp);	//Compute the extra k
 //	daxpy(h*d.ve[s],temp,err,0);	//Extra k
@@ -2398,7 +2454,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
 
     //Build SC_i for dense
 //	for(i=0;i<dim;i++)
-//		temp.ve[i] = max(fabs(new_y.ve[i]),fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+//		temv_at(p, i) = max(fabs(new_v_at(y, i)),fabs(y_v_at(0, i))) * error->reltol_densv_at(e, i) + error->abstol_densv_at(e, i);
 
 //	double err_d = norm_inf(err,temp,1.0,0);
 //	double value_d = pow(1.0/err_d,1.0/meth->d_order);
@@ -2431,13 +2487,13 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         for(j=0;j<s;j++)
         {
             v_add(y_0,Z_i[j],sum,0);
-            if(sum.ve[0] < 0.0)	sum.ve[0] = 1e-10;	//A negative discharge is clearly a poor approximation
+            if(suv_at(m, 0) < 0.0)	suv_at(m, 0) = 1e-10;	//A negative discharge is clearly a poor approximation
             if(dim > 1 && sum.ve[1] < 0.0)	sum.ve[1] = 0.0;
             if(dim > 2 && sum.ve[2] < 0.0)	sum.ve[2] = 0.0;
             if(dim > 2 && sum.ve[2] > 1.0)	sum.ve[2] = 1.0 - 1e-10;
             if(dim > 3 && sum.ve[3] < 0.0)	sum.ve[3] = 1e-10;
             if(dim > 3 && sum.ve[3] > 1.0 - sum.ve[2])	sum.ve[3] = 1.0 - sum.ve[2];
-            link_i->f(t+c.ve[j]*h,sum,temp_parent_approx[j],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,k[j]);
+            link_i->f(t+v_at(c, j)*h,sum,temp_parent_approx[j],link_i->num_parents,GlobalVars,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,k[j]);
         }
         link_i->last_t = t + h;
         link_i->current_iterations++;
@@ -2459,14 +2515,14 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
                 }
 
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 current_theta = (link_i->next_save - t)/h;
                 link_i->method->dense_b(current_theta,link_i->method->b_theta);
 
                 v_copy(node->y_approx,sum);
                 for(l=0;l<link_i->method->s;l++)
                     daxpy(h * link_i->method->b_theta.ve[l],node->next->k[l],sum,0);
-                if(sum.ve[0] < 0.0)	sum.ve[0] = 0.0;
+                if(suv_at(m, 0) < 0.0)	suv_at(m, 0) = 0.0;
                 if(dim > 1 && sum.ve[1] < 0.0)	sum.ve[1] = 0.0;
                 if(dim > 2 && new_y.ve[2] < 0.0)	new_y.ve[2] = 0.0;
                 if(dim > 2 && new_y.ve[2] > 1.0)	new_y.ve[2] = 1.0;
@@ -2484,7 +2540,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         }
 
         //Check if this is a max discharge
-        if(new_y.ve[0] > link_i->peak_value.ve[0])
+        if(new_v_at(y, 0) > link_i->peak_valuv_at(e, 0))
         {
             v_copy(new_y,link_i->peak_value);
             link_i->peak_time = link_i->last_t;
@@ -2551,7 +2607,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
         for(i=0;i<link_i->num_parents;i++)
         {
             currentp = link_i->parents[i];
-            while(currentp->list->head != curr_node[i])
+            while(currentp->my->list.head != curr_node[i])
             {
                 Remove_Head_Node(currentp->list);
                 currentp->current_iterations--;
@@ -2564,7 +2620,7 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         link_i->h = min(step_1,step_log);
         link_i->compute_J = 1;
@@ -2574,12 +2630,14 @@ int RadauRKSolver(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_
     }
 
 }
-*/
+
+#endif // defined(ASYNCH_HAVE_IMPLICIT_SOLVER)
+
 
 //Computes a solution for a location with forced system states.
 //Computes a solution at either the last time of the upstream link, or the time when a change in the system state occurs.
 //Should return 1.
-int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, TempStorage* workspace)
+int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int i, j, l;
     VEC new_y;
@@ -2589,19 +2647,18 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
     short int change_value = 0;
 
     //Some variables to make things easier to read
-    VEC y_0 = link_i->list->tail->y_approx;
-    double t = link_i->list->tail->t;
+    VEC y_0 = link_i->my->list.tail->y_approx;
+    double t = link_i->my->list.tail->t;
     double h = link_i->h;
     unsigned int s = link_i->method->s;
     VEC params = link_i->params;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = &link_i->my->error_data;
     const unsigned int dim = link_i->dim;
     unsigned int num_dense = link_i->num_dense;
     unsigned int* dense_indices = link_i->dense_indices;
     unsigned int num_outputs = GlobalVars->num_outputs;
-    VEC** temp_parent_approx = workspace->temp_parent_approx;
-    VEC* temp_k = workspace->temp_k;
+    VEC2 temp_k = workspace->temp_k;
 
     //Find the next time to step on
     t_needed = GlobalVars->maxtime;
@@ -2632,23 +2689,22 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
 
         //Find the corresponding theta value and approximate solution
         while (t_needed > curr_node[i]->t)
             curr_node[i] = curr_node[i]->next;
 
-        if (curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+        if (curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
     }
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     new_y = new_node->y_approx;
 
     //Compute the k's
-    for (i = 0; i < s; i++)
-        for (j = 0; j < dim; j++)	temp_k[i].ve[j] = 0.0;
+    v2_zero(temp_k);
 
     //Build the solution
     if (change_value)
@@ -2691,7 +2747,7 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
@@ -2707,8 +2763,9 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
             }
         }
     }
-    link_i->f(t + h, y_0, NULL, link_i->num_parents, GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, new_y);
-    if (link_i->state_check)	new_node->state = link_i->state_check(new_y, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->dam);
+    link_i->differential(t + h, y_0, v2_init(0, 0), GlobalVars->global_params, link_i->forcing_values, link_i->qvs, params, link_i->state, link_i->user, new_y);
+    if (link_i->state_check)
+        new_node->state = link_i->state_check(new_y, GlobalVars->global_params, link_i->params, link_i->qvs, link_i->dam);
 
     //Set stepsize
     link_i->h = h;
@@ -2745,7 +2802,7 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
     }
 
     //Check if this is a max discharge
-    if (link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]))
+    if (link_i->peak_flag && (v_at(new_y, 0) > v_at(link_i->peak_value, 0)))
     {
         v_copy_n(new_y, link_i->peak_value, link_i->dim);
         link_i->peak_time = link_i->last_t;
@@ -2792,7 +2849,7 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
                 link_i->forcing_indices[j] = l;
 
                 double forcing_buffer = link_i->forcing_buff[j]->data[l][1];
-                link_i->forcing_values[j] = forcing_buffer;
+                v_set(link_i->forcing_values, j, forcing_buffer);
 
                 //Find and set the new change in rainfall
                 for (i = l + 1; i < link_i->forcing_buff[j]->nrows; i++)
@@ -2813,9 +2870,9 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
     for (i = 0; i < link_i->num_parents; i++)
     {
         currentp = link_i->parents[i];
-        while (currentp->list->head != curr_node[i])
+        while (currentp->my->list.head != curr_node[i])
         {
-            Remove_Head_Node(currentp->list);
+            Remove_Head_Node(&currentp->my->list);
             currentp->current_iterations--;
             currentp->iters_removed++;
         }
@@ -2828,12 +2885,13 @@ int ForcedSolutionSolver(Link* link_i, GlobalVars* GlobalVars, int* assignments,
 }
 
 
-/*
+#if defined(ASYNCH_HAVE_ASSIM_SOLVER)
+
 //Computes one step of a method to solve the ODE at a link. Assumes parents have enough computed solutions.
 //This is for use with data assimilation. It assumes the vectors are a lot smaller than they really are.
 //Link* link_i: the link to apply a numerical method to.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
-int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_flag,FILE* outputfile,ConnData* conninfo,Forcing* forcings,TempStorage* workspace)
+int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignments,bool print_flag,FILE* outputfile,ConnData* conninfo,Forcing* forcings,Workspace* workspace)
 {
     unsigned int i,j,l,m,idx;
     VEC* new_y;
@@ -2842,10 +2900,10 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     double t_needed,timediff,current_theta;
 
     //Some variables to make things easier to read
-    VEC* y_0 = link_i->list->tail->y_approx;
+    VEC* y_0 = link_i->my->list.tail->y_approx;
     double h = link_i->h;
-    double t = link_i->list->tail->t;
-    MAT* A = link_i->method->A;
+    double t = link_i->my->list.tail->t;
+    VEC2* A = link_i->method->A;
     VEC* b = link_i->method->b;
     VEC* c = link_i->method->c;
     unsigned int s = link_i->method->s;
@@ -2853,7 +2911,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     VEC* e = link_i->method->e;
     VEC* d = link_i->method->d;
     RKMethod* meth = link_i->method;
-    ErrorData* error = link_i->errorinfo;
+    ErrorData* error = link_i->error_data;
     //const unsigned int dim = GlobalVars->dim;
     //unsigned int num_dense = GlobalVars->num_dense;
     unsigned int* dense_indices = GlobalVars->dense_indices;
@@ -2877,20 +2935,20 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     for(i=0;i<link_i->num_parents;i++)
     {
         currentp = link_i->parents[i];
-        curr_node[i] = currentp->list->head;
+        curr_node[i] = currentp->my->list.head;
 
         for(j=0;j<s;j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c.ve[j]*h,currentp->last_t);
-            //t_needed = t + c.ve[j]*h;
+            t_needed = min(t + v_at(c, j)*h,currentp->last_t);
+            //t_needed = t + v_at(c, j)*h;
 
             //Find the corresponding theta value and approximate solution
             while(t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if(curr_node[i] != currentp->list->head)	curr_node[i] = curr_node[i]->prev;
+            if(curr_node[i] != currentp->my->list.head)	curr_node[i] = curr_node[i]->prev;
 
             timediff = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed-curr_node[i]->t)/timediff;
@@ -2904,7 +2962,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
                 for(l=0;l<currentp->method->s;l++)
                     temp_parent_approx[j][i].ve[idx] += timediff*currentp->method->b_theta.ve[l] * curr_node[i]->next->k[l].ve[m];
             }
-            link_i->CheckConsistency(temp_parent_approx[j][i],params,GlobalVars->global_params);
+            link_i->check_consistency(temp_parent_approx[j][i],params,GlobalVars->global_params);
 //printf("ID = %u parent = %u num_dense_parents = %u\n",link_i->ID,currentp->ID,num_dense_parents[i]);
 //Print_Vector(temp_parent_approx[j][i]);
         }
@@ -2914,7 +2972,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     //Do the RK method to get the next approximation
 
     //Setup variables for the new data
-    new_node = New_Step(link_i->list);
+    new_node = New_Step(&link_i->my->list);
     new_node->t = t + h;
     new_y = new_node->y_approx;
 
@@ -2923,41 +2981,41 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     {
         v_copy_n(y_0,sum,practical_dim);
         for(j=0;j<i;j++)
-            daxpy_u(h*A.me[i][j],temp_k[j],sum,0,practical_dim);
-        link_i->CheckConsistency(sum,params,GlobalVars->global_params);
-        link_i->f(t + c.ve[i] * h,sum,temp_parent_approx[i],link_i->num_parents,GlobalVars->global_params,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,temp_k[i]);
+            daxpy_u(h*A.me[i][j],v2_slice(temp_k, j),sum,0,practical_dim);
+        link_i->check_consistency(sum,params,GlobalVars->global_params);
+        link_i->f(t + v_at(c, i) * h,sum,temp_parent_approx[i],link_i->num_parents,GlobalVars->global_params,link_i->forcing_values,link_i->qvs,params,link_i->state,link_i->user,v2_slice(temp_k, i));
     }
 
     //Build the solution
     v_copy_n(y_0,new_y,practical_dim);
-    for(i=0;i<s;i++)	daxpy_u(h*b.ve[i],temp_k[i],new_y,0,practical_dim);
-    link_i->CheckConsistency(new_y,params,GlobalVars->global_params);
+    for(i=0;i<s;i++)	daxpy_u(h*v_at(b, i),v2_slice(temp_k, i),new_y,0,practical_dim);
+    link_i->check_consistency(new_y,params,GlobalVars->global_params);
 
     //Error estimation and step size selection
 
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
     double err_1;
-    v_copy_n(temp_k[0],sum,practical_dim);
-    sv_mlt_u(h * e.ve[0],sum,0,practical_dim);
-    for(i=1;i<s;i++)	daxpy_u(h*e.ve[i],temp_k[i],sum,0,practical_dim);
+    v_copy_n(v2_slice(temp_k, 0),sum,practical_dim);
+    sv_mlt_u(h * v_at(e, 0),sum,0,practical_dim);
+    for(i=1;i<s;i++)	daxpy_u(h*v_at(e, i),v2_slice(temp_k, i),sum,0,practical_dim);
 
     //Build SC_i
     //for(i=0;i<dim;i++)
     for(i=0;i<practical_dim;i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]),fabs(y_0.ve[i])) * error->reltol.ve[i] + error->abstol.ve[i];
+        temv_at(p, i) = max(fabs(new_v_at(y, i)),fabs(y_v_at(0, i))) * error->reltov_at(l, i) + error->abstov_at(l, i);
 
     err_1 = norm_inf_u(sum,temp,0,practical_dim);
     double value_1 = pow(1.0/err_1,1.0/meth->e_order);
 
     //Check the dense error (in inf norm) to determine if the step can be accepted
     double err_d;
-    v_copy_n(temp_k[0],sum,practical_dim);
-    sv_mlt_u(h * d.ve[0],sum,0,practical_dim);
-    for(i=1;i<s;i++)	daxpy_u(h*d.ve[i],temp_k[i],sum,0,practical_dim);
+    v_copy_n(v2_slice(temp_k, 0),sum,practical_dim);
+    sv_mlt_u(h * v_at(d, 0),sum,0,practical_dim);
+    for(i=1;i<s;i++)	daxpy_u(h*v_at(d, i),v2_slice(temp_k, i),sum,0,practical_dim);
 
     //for(i=0;i<dim;i++)
     for(i=0;i<practical_dim;i++)
-        temp.ve[i] = max(fabs(new_y.ve[i]),fabs(y_0.ve[i])) * error->reltol_dense.ve[i] + error->abstol_dense.ve[i];
+        temv_at(p, i) = max(fabs(new_v_at(y, i)),fabs(y_v_at(0, i))) * error->reltol_densv_at(e, i) + error->abstol_densv_at(e, i);
 
     err_d = norm_inf_u(sum,temp,0,practical_dim);
     double value_d = pow(1.0/err_d,1.0/meth->d_order);
@@ -2997,7 +3055,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
                     break;
                 }
                 (link_i->disk_iterations)++;
-                node = link_i->list->tail->prev;
+                node = link_i->my->list.tail->prev;
                 current_theta = (link_i->next_save - t)/h;
                 link_i->method->dense_b(current_theta,link_i->method->b_theta);
                 //for(m=0;m<num_dense;m++)
@@ -3008,7 +3066,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
                     for(l=0;l<link_i->method->s;l++)
                         sum.ve[idx] += h*link_i->method->b_theta.ve[l] * node->next->k[l].ve[m];
                 }
-                link_i->CheckConsistency(sum,params,GlobalVars->global_params);
+                link_i->check_consistency(sum,params,GlobalVars->global_params);
 
                 //Write to a file
                 WriteStep(link_i->next_save,sum,GlobalVars,params,link_i->state,outputfile,link_i->output_user,&(link_i->pos_offset));
@@ -3018,7 +3076,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
         }
 
         //Check if this is a max discharge
-        if( link_i->peak_flag && (new_y.ve[0] > link_i->peak_value.ve[0]) )
+        if( link_i->peak_flag && (new_v_at(y, 0) > link_i->peak_valuv_at(e, 0)) )
         {
             v_copy_n(new_y,link_i->peak_value,practical_dim);
             link_i->peak_time = link_i->last_t;
@@ -3084,7 +3142,7 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
         for(i=0;i<link_i->num_parents;i++)
         {
             currentp = link_i->parents[i];
-            while(currentp->list->head != curr_node[i])
+            while(currentp->my->list.head != curr_node[i])
             {
                 Remove_Head_Node(currentp->list);
                 currentp->current_iterations--;
@@ -3097,36 +3155,10 @@ int ExplicitRKSolver_DataAssim(Link* link_i,UnivVars* GlobalVars,int* assignment
     else
     {
         //Trash the data from the failed step
-        Undo_Step(link_i->list);
+        Undo_Step(&link_i->my->list);
 
         return 0;
     }
 }
-*/
 
-
-////!!!! This should probably not be in this file !!!!
-//void BackupParent(Link* currentp,double time,VEC* backup,UnivVars* GlobalVars)
-//{
-//	unsigned int l;
-//	RKSolutionNode* curr_node = currentp->list->head;
-//	double timediff,theta;
-//	VEC storage = backup[currentp->location];
-//
-//	//Find the corresponding theta value and approximate solution
-//	while(time > curr_node->t)
-//		curr_node = curr_node->next;
-//	if(curr_node != currentp->list->head)	curr_node = curr_node->prev;
-//
-//	timediff = curr_node->next->t - curr_node->t;
-//	theta = (time-curr_node->t)/timediff;
-//	currentp->method->dense_b(theta,currentp->method->b_theta);
-//
-//	v_copy(curr_node->y_approx,storage);
-//	for(l=0;l<currentp->method->s;l++)
-//		daxpy(timediff*currentp->method->b_theta.ve[l],curr_node->next->k[l],storage,currentp->diff_start);
-//
-//	//Build the algebraic variable
-//	if(currentp->alg != NULL)
-//		currentp->alg(storage,GlobalVars->global_params,currentp->params,currentp->qvs,curr_node->next->state,currentp->user,storage);
-//}
+#endif // defined(ASYNCH_HAVE_ASSIM_SOLVER)

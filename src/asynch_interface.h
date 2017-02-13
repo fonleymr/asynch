@@ -19,7 +19,7 @@
 //#include "solvers.h"
 //#include "io.h"
 #include "data_types.h"
-#include "mathmethods.h"
+#include "vector.h"
 
 
 //#define ASYNCH_MAX_DB_CONNECTIONS 20
@@ -30,7 +30,7 @@ typedef struct GlobalVars GlobalVars;
 typedef struct Link Link;
 typedef struct RKMethod RKMethod;
 typedef struct TransData TransData;
-typedef struct TempStorage TempStorage;
+typedef struct Workspace Workspace;
 typedef struct ConnData ConnData;
 typedef struct QVSData QVSData;
 typedef struct Forcing Forcing;
@@ -87,12 +87,12 @@ typedef union OutputCallback {
 typedef void (PeakflowOutputCallback)(unsigned int, double, VEC, VEC, VEC, double, unsigned int, void*, char*);
 
 //Function signatures
-typedef void (DifferentialFunc)(double, VEC, VEC*, unsigned short int, VEC, double*, QVSData*, VEC, int, void*, VEC);                    //!< Right-hand side function for ODE                                            
-typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                                                  //!< Function for algebraic variables
-typedef int (CheckStateFunc)(VEC, VEC, VEC, QVSData*, unsigned int);                                                                     //!< Function to check what "state" the state variables are in (for discontinuities)
-typedef void (JacobianFunc)(double, VEC, VEC*, unsigned short int, VEC, double*, VEC, MAT*);                                                    //!< Jacobian of right-hand side function
-typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, TempStorage*);   //!< RK solver to use
-typedef void (CheckConsistencyFunc)(VEC y, VEC, VEC);                                                                                           //!< Function to check state variables
+typedef void (DifferentialFunc)(double, VEC, VEC2, VEC, VEC, QVSData*, VEC, int, void*, VEC);           //!< Right-hand side function for ODE                                            
+typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                 //!< Right-hand side function for algebraic variables
+typedef int (CheckStateFunc)(VEC, VEC, VEC, QVSData*, unsigned int);                                    //!< Function to check what "state" the state variables are in (for discontinuities)
+typedef void (JacobianFunc)(double, VEC, VEC2, VEC, VEC, VEC, VEC2);                                    //!< jacobian of right-hand side function
+typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, Workspace*);     //!< RK solver to use
+typedef void (CheckConsistencyFunc)(VEC, VEC, VEC);                                                     //!< Function to check state variables
 
 // Custom models signatures
 typedef void (SetParamSizesFunc)(GlobalVars*, void*);
@@ -163,8 +163,7 @@ void Asynch_Partition_Network(AsynchSolver* asynch);
 /// 
 /// \pre This routine can be called before *Asynch_Partition_Network* only if *load_all* is set to true.
 /// \param asynch A pointer to a AsynchSolver object to use.
-/// \param load_all  Setting load_all to false causes the MPI processes to only store parameters for Links assigned to them.
-void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all);
+void Asynch_Load_Network_Parameters(AsynchSolver* asynch);
 
 /// This routine processes the dam inputs for the AsynchSolver object as set in the global file read by
 // *Asynch_Parse_GBL*.
@@ -485,7 +484,7 @@ Link* Asynch_Get_Links(AsynchSolver* asynch);
 ///
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \return Number of links assigned to the current MPI process
-unsigned short Asynch_Get_Num_Links_Proc(AsynchSolver* asynch);
+unsigned int Asynch_Get_Num_Links_Proc(AsynchSolver* asynch);
 
 Link* Asynch_Get_Links_Proc(AsynchSolver* asynch);
 

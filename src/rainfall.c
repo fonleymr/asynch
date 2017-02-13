@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 
 #if defined(HAVE_POSTGRESQL)
 #include <libpq-fe.h>
@@ -16,6 +17,9 @@
 #include <zlib.h>
 #endif
 
+#include "compression.h"
+#include "comm.h"
+#include "sort.h"
 #include "rainfall.h"
 
 
@@ -59,7 +63,8 @@ int Create_Rain_Data_Par(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* 
 			sys[my_sys[i]].forcing_buff[forcing_idx] = (ForcingData*) malloc(sizeof(ForcingData));
 			sys[my_sys[i]].forcing_buff[forcing_idx]->data = (double**) malloc((max_files + 1)*sizeof(double*));
 			sys[my_sys[i]].forcing_buff[forcing_idx]->nrows = numfiles + 1;
-			for(j=0;j<max_files+1;j++)	sys[my_sys[i]].forcing_buff[forcing_idx]->data[j] = (double*) malloc(2*sizeof(double));
+			for(j=0;j<max_files+1;j++)
+                sys[my_sys[i]].forcing_buff[forcing_idx]->data[j] = (double*) malloc(2*sizeof(double));
 		}
 	}
 
@@ -129,7 +134,7 @@ int Create_Rain_Data_Par(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* 
 	{
 		current = &sys[my_sys[i]];
 		forcing_buffer = current->forcing_buff[forcing_idx]->data[0][1];
-		current->forcing_values[forcing_idx] = forcing_buffer;
+		v_set(current->forcing_values, forcing_idx, forcing_buffer);
 		current->forcing_indices[forcing_idx] = 0;
 
 		for(j=1;j<current->forcing_buff[forcing_idx]->nrows;j++)
@@ -306,7 +311,7 @@ int Create_Rain_Data_GZ(Link* sys,unsigned int N,unsigned int my_N,GlobalVars* G
 	{
 		current = &sys[my_sys[i]];
 		rainfall_buffer = current->forcing_buff[forcing_idx]->data[0][1];
-		current->forcing_values[forcing_idx] = rainfall_buffer;
+		v_set(current->forcing_values, forcing_idx, rainfall_buffer);
 		current->forcing_indices[forcing_idx] = 0;
 
 		for(j=1;j<current->forcing_buff[forcing_idx]->nrows;j++)
@@ -488,7 +493,7 @@ int Create_Rain_Data_Grid(Link* sys,unsigned int N,unsigned int my_N,GlobalVars*
 	{
 		current = &sys[my_sys[i]];
 		forcing_buffer = current->forcing_buff[forcing_idx]->data[0][1];
-		current->forcing_values[forcing_idx] = forcing_buffer;
+		v_set(current->forcing_values, forcing_idx, forcing_buffer);
 		current->forcing_indices[forcing_idx] = 0;
 
 		for(j=1;j<current->forcing_buff[forcing_idx]->nrows;j++)
@@ -733,7 +738,7 @@ printf("!!!! i = %i k = %i received = %i unix_time = %i raindb_start = %i\n",i,k
 		}
 
 		forcing_buffer = current->forcing_buff[forcing_idx]->data[j-1][1];
-		current->forcing_values[forcing_idx] = forcing_buffer;
+        v_set(current->forcing_values, forcing_idx, forcing_buffer);
 		current->forcing_indices[forcing_idx] = j-1;
 
 		for(;j<current->forcing_buff[forcing_idx]->nrows;j++)
@@ -1051,7 +1056,7 @@ printf("+++++++++\n");
 		}
 
 		forcing_buffer = current->forcing_buff[forcing_idx]->data[j-1][1];
-		current->forcing_values[forcing_idx] = forcing_buffer;
+        v_set(current->forcing_values, forcing_idx, forcing_buffer);
 		current->forcing_indices[forcing_idx] = j-1;
 
 		for(;j<current->forcing_buff[forcing_idx]->nrows;j++)
@@ -1118,10 +1123,34 @@ void SetRain0(Link* sys,unsigned int my_N,double maxtime,unsigned int* my_sys,Gl
 	for(i=0;i<my_N;i++)
 	{
 		current = &sys[my_sys[i]];
-		current->forcing_values[forcing_idx] = 0.0;
+        v_set(current->forcing_values, forcing_idx, 0.0);
 		current->forcing_indices[forcing_idx] = 0;
 		current->forcing_change_times[forcing_idx] = current->forcing_buff[forcing_idx]->data[1][0];
 	}
+}
+
+
+static int days_in_month(int mon, int year)
+{
+    const int days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    //int mon = current_time->tm_mon - 1;
+
+    if (mon == 1)	//Damn you February...
+    {
+        //int year = current_time->tm_year;
+
+        if (year % 4)	return days[mon];	//Not leap year
+        if (year % 100)	return days[mon] + 1;	//Leap year
+        if (year % 400)	return days[mon];	//Not leap year
+        return days[mon] + 1;			//If this line is reached, then the current year is at least 2400.
+                                        //I cannot explain to you in words how terrified I am to think that someone has
+                                        //used code I wrote for 400 years. Seriously, something better and with
+                                        //less bugs has surely come along. Also, anyone reading this in the year 2400 is
+                                        //probably a robot, which is pretty cool.
+                                        //--Scott,  April 2, 2014
+    }
+    else
+        return days[mon];
 }
 
 
@@ -1190,9 +1219,10 @@ double CreateForcing_Monthly(Link* sys,unsigned int my_N,unsigned int* my_sys,Gl
 	//Set the current forcing value at each link
 	for(i=0;i<my_N;i++)
 	{
-		sys[my_sys[i]].forcing_values[forcing_idx] = GlobalForcing->data[month_0][1];
-		sys[my_sys[i]].forcing_indices[forcing_idx] = month_0;
-		sys[my_sys[i]].forcing_change_times[forcing_idx] = GlobalForcing->data[month_0+1][0];
+        Link *current = &sys[my_sys[i]];
+        v_set(current->forcing_values, forcing_idx, GlobalForcing->data[month_0][1]);
+        current->forcing_indices[forcing_idx] = month_0;
+        current->forcing_change_times[forcing_idx] = GlobalForcing->data[month_0+1][0];
 	}
 
 	return t;

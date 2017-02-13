@@ -185,42 +185,42 @@ double Output_Time(unsigned int id, double t, VEC y_i, VEC global_params, VEC pa
 
 float Output_State0(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[0];
+    return (float) v_at(y_i, 0);
 }
 
 float Output_State1(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[1];
+    return (float)v_at(y_i, 1);
 }
 
 float Output_State2(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[2];
+    return (float)v_at(y_i, 2);
 }
 
 float Output_State3(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[3];
+    return (float)v_at(y_i, 3);
 }
 
 float Output_State4(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[4];
+    return (float)v_at(y_i, 4);
 }
 
 float Output_State5(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[5];
+    return (float)v_at(y_i, 5);
 }
 
 float Output_State6(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[6];
+    return (float)v_at(y_i, 6);
 }
 
 float Output_State7(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
 {
-    return (float) y_i.ve[7];
+    return (float)v_at(y_i, 7);
 }
 
 int Output_Time_Int(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user)
@@ -233,13 +233,13 @@ int Output_Time_Int(unsigned int id, double t, VEC y_i, VEC global_params, VEC p
 
 void OutputPeakflow_Classic_Format(unsigned int ID, double peak_time, VEC peak_value, VEC params, VEC global_params, double conversion, unsigned int area_idx, void* user, char* buffer)
 {
-    sprintf(buffer, "%u %.4f %.8f %.8f\n", ID, conversion*params.ve[area_idx], peak_time, peak_value.ve[0]);
+    sprintf(buffer, "%u %.4f %.8f %.8f\n", ID, conversion * v_at(params, area_idx), peak_time, v_at(peak_value, 0));
 }
 
 void OutputPeakflow_Forecast_Format(unsigned int ID, double peak_time, VEC peak_value, VEC params, VEC global_params, double conversion, unsigned int area_idx, void* user, char* buffer)
 {
     unsigned int offset = *(unsigned int*)user;
     //sprintf(buffer,"%u %u %.12e %u NULL\n",ID,offset + (unsigned int)(peak_time*60 + .1),peak_value.ve[0],offset);
-    sprintf(buffer, "%u %u %.12e %u\n", ID, offset + (unsigned int)(peak_time * 60 + .1), peak_value.ve[0], offset);
+    sprintf(buffer, "%u %u %.12e %u\n", ID, offset + (unsigned int)(peak_time * 60 + .1), v_at(peak_value, 0), offset);
 }
 

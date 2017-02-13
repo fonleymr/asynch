@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
     print_out("Partitioning network...\n");
     Asynch_Partition_Network(asynch);
     print_out("Loading parameters...\n");
-    Asynch_Load_Network_Parameters(asynch, 0);
+    Asynch_Load_Network_Parameters(asynch);
     print_out("Reading dam and reservoir data...\n");
     Asynch_Load_Dams(asynch);
     print_out("Setting up numerical error data...\n");

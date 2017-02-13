@@ -5,12 +5,10 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+//
+
 #include "structs.h"
-#include "compression.h"
-#include "comm.h"
-#include "sort.h"
-#include <time.h>
-#include "date_manip.h"
+
 
 extern int my_rank;
 extern int np;

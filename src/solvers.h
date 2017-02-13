@@ -5,12 +5,12 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+
+#include <stdio.h>
+#include <stdbool.h>
+
 #include "structs.h"
-#include "rainfall.h"
-#include "comm.h"
-#include "rkmethods.h"
-#include "system.h"
-#include "forcings.h"
+
 
 extern int np;
 extern int my_rank;
@@ -26,7 +26,7 @@ void Advance(
     unsigned int* res_list,
     unsigned int res_size,
     unsigned int** id_to_loc,
-    TempStorage* workspace,
+    Workspace* workspace,
     Forcing* forcings,
     ConnData* db_connections,
     TransData* my_data,

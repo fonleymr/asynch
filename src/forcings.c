@@ -7,11 +7,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <time.h>
 
 #if defined(HAVE_POSTGRESQL)
 #include <libpq-fe.h>
 #endif
 
+#include "minmax.h"
+#include "comm.h"
+#include "rainfall.h"
 #include "forcings.h"
 
 
@@ -287,7 +291,7 @@ double NextForcingRecurring(Link* sys,unsigned int N,unsigned int* my_sys,unsign
 	else
 	{
 		first_time = gmtime(&casted_first_file);
-		copy_tm(first_time,&next_time);	//Yeah, this is lazy. But it's only done once...
+		memcpy(&next_time, first_time, sizeof(struct tm));	//Yeah, this is lazy. But it's only done once...
 	}
 
 	maxtime = CreateForcing_Monthly(sys,my_N,my_sys,GlobalVars,forcing->GlobalForcing,forcing_idx,&next_time,forcing->first_file,forcing->last_file,sys[my_sys[0]].last_t);

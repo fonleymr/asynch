@@ -9,14 +9,30 @@
 #include <memory.h>
 #include <math.h>
 
-#include "processdata.h"
-#include "solvers.h"
+#include <minmax.h>
+#include <processdata.h>
+#include <rksteppers.h>
+#include <structs.h>
+
+
+extern AsynchModel *the_model;
+
 
 int num_call_function = 0;
 
-void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N, GlobalVars* globals, int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, Workspace* workspace, Forcing* forcings, ConnData* db_connections, TransData* my_data, bool print_flag, FILE* outputfile)
+void Advance(
+    Link *sys, unsigned int N,
+    Link **my_sys, unsigned int my_N,
+    GlobalVars* globals,
+    int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, const Lookup * const id_to_loc,
+    Workspace* workspace,
+    Forcing* forcings,
+    ConnData* db_connections,
+    TransData* my_data,
+    bool print_flag,
+    FILE* outputfile)
 {
-    unsigned int i, k;
+    unsigned int i;
 
     //Initialize remaining data
     short int* done = (short int*)malloc(my_N * sizeof(short int));
@@ -28,7 +44,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
 
     //Initialize values for forcing data
     unsigned int passes = 1;
-    for (i = 0; i < globals->num_forcings; i++)
+    for (unsigned int i = 0; i < globals->num_forcings; i++)
     {
         if (forcings[i].active)
         {
@@ -43,10 +59,10 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
         passes = max(passes, (unsigned int)ceil(globals->maxtime / globals->dump_time));
 
     //Start the main loop
-    for (k = 0; k < passes; k++)
+    for (unsigned int k = 0; k < passes; k++)
     {
         around = 0;
-        current = &sys[my_sys[my_N - 1]];
+        current = my_sys[my_N - 1];
         curr_idx = 0;
         last_idx = my_N - 1;
         
@@ -59,7 +75,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
             if (forcings[i].active)
             {
                 //printf("Forcing %u is active  %e %e\n",i,sys[my_sys[0]]->last_t,forcings[i].maxtime);
-                if (fabs(sys[my_sys[0]].last_t - forcings[i].maxtime) < 1e-14)
+                if (fabs(my_sys[0]->last_t - forcings[i].maxtime) < 1e-14)
                 {
                     forcings[i].maxtime = forcings[i].GetNextForcing(sys, N, my_sys, my_N, assignments, globals, &forcings[i], db_connections, id_to_loc, i);
                     //(forcings[i].iteration)++;	if flag is 3 (dbc), this happens in GetNextForcing
@@ -72,7 +88,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
         //Check shapshot next time
         if (globals->dump_loc_flag == 4)
         {
-            double last_time = sys[my_sys[0]].last_t;
+            double last_time = my_sys[0]->last_t;
             double next_time = fmod(last_time, globals->dump_time);
             if (next_time < 1e-14)
             {
@@ -90,15 +106,15 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
         //If a state forcing is used, previously outputted data may need to be rewritten
         if (globals->res_flag)
         {
-            for (i = 0; i < my_N; i++)	//!!!! Can we loop over just the links with reservoirs? Improve id_to_loc. !!!!
+            for (unsigned int i = 0; i < my_N; i++)	//!!!! Can we loop over just the links with reservoirs? Improve id_to_loc. !!!!
             {
-                current = &sys[my_sys[i]];
+                current = my_sys[i];
                 assert(current->my != NULL);
 
                 //if(current->res && fabs( (current->last_t) - (current->next_save - current->print_time) ) < 1e-12)                
-                if (current->res)
+                if (current->has_res)
                 {
-                    current->differential(current->last_t, current->my->list.tail->y_approx, v2_init(0, 0), globals->global_params, current->forcing_values, current->qvs, current->params, current->state, current->user, current->my->list.tail->y_approx);
+                    the_model->differential(current->last_t, current->my->list.tail->y_approx, current->dim, NULL, 0, globals->global_params, current->params, current->my->forcing_values, current->user, current->my->list.tail->y_approx);
                     if (current->save_flag && fabs(current->last_t - (current->next_save - current->print_time)) / (current->last_t + 1e-12) < 1e-6)
                     {
                         error_code = overwrite_last_step(current, globals, outputfile);
@@ -110,13 +126,13 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
         }
         
         // Update forcing
-        Exchange_InitState_At_Forced(sys, N, assignments, getting, res_list, res_size, id_to_loc, globals);
+        Exchange_InitState_At_Forced(sys, N, assignments, getting, res_list, res_size, id_to_loc, globals, the_model);
         
         //Set a new step size
-        for (i = 0; i < my_N; i++)
+        for (unsigned int i = 0; i < my_N; i++)
         {
-            sys[my_sys[i]].h = InitialStepSize(sys[my_sys[i]].last_t, &sys[my_sys[i]], globals, workspace);
-            assert(sys[my_sys[i]].h > 1e-12);
+            my_sys[i]->h = InitialStepSize(my_sys[i]->last_t, my_sys[i], globals, workspace);
+            assert(my_sys[i]->h > 1e-12);
         }
 
         //This might be needed. Sometimes some procs get stuck in Finish for communication, but makes runs much slower.
@@ -124,7 +140,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
 
         unsigned int num_iterations = 0;
 
-        if (sys[my_sys[0]].last_t < globals->maxtime)
+        if (my_sys[0]->last_t < globals->maxtime)
         {
             unsigned int alldone = 0;
             while (alldone < my_N)
@@ -136,8 +152,8 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                 {
                     curr_idx = (curr_idx > 0) ? curr_idx - 1 : last_idx;
                     around++;
-                } while ((around < two_my_N) && (sys[my_sys[curr_idx]].ready == 0 || done[curr_idx] == 1));
-                current = &sys[my_sys[curr_idx]];
+                } while ((around < two_my_N) && (my_sys[curr_idx]->ready == 0 || done[curr_idx] == 1));
+                current = my_sys[curr_idx];
 
                 if (around >= two_my_N)
                 {
@@ -157,25 +173,27 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                             while (current->last_t + current->h < maxtime && current->current_iterations < globals->iter_limit)
                             {
                                 for (i = 0; i < globals->num_forcings; i++)		//!!!! Put this in solver !!!!
-                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
-                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                        current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
+                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                             }
 
                             if (current->last_t + current->h >= maxtime  && current->current_iterations < globals->iter_limit && current->last_t < maxtime)	//If less than a full step is needed, just finish up
                             {
                                 for (i = 0; i < globals->num_forcings; i++)
-                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                        current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
-                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
 
                                 while (current->rejected == 0)
                                 {
                                     for (i = 0; i < globals->num_forcings; i++)
-                                        if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                        if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                     current->h = min(current->h, maxtime - current->last_t);
                                     assert(current->h > 0);
-                                    current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                    current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 }
                             }
                         }
@@ -188,7 +206,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                             while (parentsval == current->num_parents && current->current_iterations < globals->iter_limit)
                             {
                                 for (i = 0; i < globals->num_forcings; i++)
-                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
 
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
@@ -199,7 +217,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                     assert(current->h > 0);
                                 }
 
-                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
 
                                 parentsval = 0;
                                 for (i = 0; i < current->num_parents; i++)
@@ -207,14 +225,15 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                             }
 
                             parentsval = 0;
-                            for (i = 0; i < current->num_parents; i++)
+                            for (unsigned int i = 0; i < current->num_parents; i++)
                                 parentsval += (current->parents[i]->last_t >= maxtime);
+
                             if (parentsval == current->num_parents && current->current_iterations < globals->iter_limit && current->last_t < maxtime)		//If all parents are done, then current should finish up too
                             {
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
-                                for (i = 0; i < globals->num_forcings; i++)
-                                    if (forcings[i].active && current->last_t < current->forcing_change_times[i])	current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                for (unsigned int i = 0; i < globals->num_forcings; i++)
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
 #if defined (ASYNCH_HAVE_IMPLICIT_SOLVER)
@@ -224,14 +243,14 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                     assert(current->h > 0);
                                 }
 
-                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 assert(current->h > 0);
 
                                 while (current->last_t < maxtime && current->current_iterations < globals->iter_limit)
                                 {
-                                    for (i = 0; i < globals->num_forcings; i++)
-                                        if (forcings[i].active && current->last_t < current->forcing_change_times[i])
-                                            current->h = min(current->h, current->forcing_change_times[i] - current->last_t);
+                                    for (unsigned int i = 0; i < globals->num_forcings; i++)
+                                        if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                            current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
 
                                     if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                     {
@@ -243,7 +262,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                                     }
 
                                     current->h = min(current->h, maxtime - current->last_t);
-                                    current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                    current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 }
                             }
 
@@ -268,7 +287,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
 
                             double next_t = child->last_t + child->h;
                             parentsval = 0;
-                            for (i = 0; i < child->num_parents; i++)
+                            for (unsigned int i = 0; i < child->num_parents; i++)
                                 parentsval += (child->parents[i]->last_t >= next_t) || (child->parents[i]->last_t >= maxtime);
 
                             if (parentsval == child->num_parents)
@@ -278,7 +297,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                         }
 
                         //See if current has parents that hit their limit
-                        for (i = 0; i < current->num_parents; i++)
+                        for (unsigned int i = 0; i < current->num_parents; i++)
                         {
                             if (current->parents[i]->current_iterations >= globals->iter_limit)
                                 current->h = min(current->h, current->parents[i]->last_t - current->last_t);
@@ -288,7 +307,7 @@ void Advance(Link* sys, unsigned int N, unsigned int* my_sys, unsigned int my_N,
                         }
 
                         parentsval = 0;
-                        for (i = 0; i < current->num_parents; i++)
+                        for (unsigned int i = 0; i < current->num_parents; i++)
                             parentsval += (current->last_t + current->h <= current->parents[i]->last_t);
                         if (parentsval == current->num_parents && current->current_iterations < globals->iter_limit)
                             current->ready = 1;

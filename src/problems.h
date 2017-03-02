@@ -40,7 +40,7 @@ void assim_river_rainfall_adjusted(double t, VEC y_i, VEC2 y_p, VEC global_param
 
 //Forecast Models
 void LinearHillslope_Evap(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans);
-int LinearHillslope_Evap_Check(VEC y, VEC params, VEC global_params, QVSData* qvs, unsigned int dam);
+int LinearHillslope_Evap_Check(VEC y, VEC params, VEC global_params, QVSData* qvs, unsigned int is_dam);
 void Hillslope_Toy(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans);
 void LinearHillslope_Evap_RC(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans);
 void LinearHillslope_MonthlyEvap(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, QVSData* qvs, VEC params, int state, void* user, VEC ans);
@@ -72,12 +72,6 @@ void Jx_simple_river(VEC y_i, VEC global_params, VEC params, VEC ans);
 void Jsimple(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, VEC param, VEC2 ans);
 void Jsimple_soil(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, VEC param, VEC2 ans);
 void JRobertson(double t, VEC y_i, VEC2 y_p, VEC global_params, VEC forcing_values, VEC param, VEC2 ans);
-
-//Checks
-int dam_check(VEC y, VEC global_params, VEC param, QVSData* qvs, unsigned int dam);
-int dam_check2(VEC y, VEC global_params, VEC param, QVSData* qvs, unsigned int dam);
-int dam_check3(VEC y, VEC global_params, VEC param, QVSData* qvs, unsigned int dam);
-int dam_check_qvs(VEC y, VEC global_params, VEC params, QVSData* qvs, unsigned int dam);
 
 //Algebraic equations
 void dam_q(VEC y, VEC global_params, VEC param, QVSData* qvs, int state, void* user, VEC ans);

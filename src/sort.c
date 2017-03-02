@@ -5,6 +5,7 @@
 #endif
 
 #include <stdlib.h>
+#include <memory.h>
 
 #include "sort.h"
 
@@ -31,7 +32,7 @@ void merge_sort(Link* array, unsigned int size, unsigned int idx)
         {
             while (l <= l_max && r <= r_max)
             {
-                if (v_at(array[r].params, idx) > v_at(array[l].params, idx))
+                if (array[r].params[idx] > array[l].params[idx])
                     tmp[current] = &array[r++];
                 else
                     tmp[current] = &array[l++];
@@ -60,37 +61,34 @@ void merge_sort(Link* array, unsigned int size, unsigned int idx)
 //Sorts a list of links by distance. Uses merge sort.
 //Link** array: The list of links to be sorted.
 //int size: The number of links in array.
-void merge_sort_distance(Link* sys, unsigned int* array, unsigned int size)
+void merge_sort_by_distance(Link **sys, unsigned int size)
 {
-    unsigned int increment, l, l_max, r, r_max, current, i;
-    unsigned int* tmp;
-
-    increment = 1;
-    tmp = (unsigned int*)malloc(size * sizeof(unsigned int));
+    unsigned int increment = 1;
+    Link **tmp = malloc(size * sizeof(Link *));
 
     while (increment < size)
     {
-        l = 0;
-        r = increment;
-        l_max = r - 1;
-        r_max = (l_max + increment < size) ? l_max + increment : size - 1;
-        current = 0;
+        unsigned int l = 0;
+        unsigned int r = increment;
+        unsigned int l_max = r - 1;
+        unsigned int r_max = (l_max + increment < size) ? l_max + increment : size - 1;
+        unsigned int current = 0;
 
         while (current < size)
         {
             while (l <= l_max && r <= r_max)
             {
-                if (sys[array[r]].distance > sys[array[l]].distance)
-                    tmp[current] = array[r++];
+                if (sys[r]->distance > sys[l]->distance)
+                    tmp[current] = sys[r++];
                 else
-                    tmp[current] = array[l++];
+                    tmp[current] = sys[l++];
                 current++;
             }
 
             while (r <= r_max)
-                tmp[current++] = array[r++];
+                tmp[current++] = sys[r++];
             while (l <= l_max)
-                tmp[current++] = array[l++];
+                tmp[current++] = sys[l++];
 
             l = r;
             r += increment;
@@ -100,46 +98,43 @@ void merge_sort_distance(Link* sys, unsigned int* array, unsigned int size)
         }
 
         increment *= 2;
-        for (i = 0; i < size; i++)
-            array[i] = tmp[i];
+        for (unsigned int i = 0; i < size; i++)
+            sys[i] = tmp[i];
     }
+
     free(tmp);
 }
 
 //Sorts a two dimensional array by the ids entry (first column). Uses merge sort.
 //int** array: The array to be sorted. The first column is assumed to hold the ids of each row. Must have two columns only.
 //int size: The number of rows of array.
-void merge_sort_ids(unsigned int** array, unsigned int size)
+void merge_sort_by_ids(Lookup* array, unsigned int size)
 {
-    unsigned int increment, l, l_max, r, r_max, current, i;
-    unsigned int** tmp;
-
-    increment = 1;
-    tmp = (unsigned int**)malloc(sizeof(unsigned int*) * size);
-    for (i = 0; i < size; i++)	tmp[i] = malloc(sizeof(unsigned int) * 2);
+    unsigned int increment = 1;
+    Lookup *tmp = malloc(size * sizeof(Lookup));
 
     while (increment < size)
     {
-        l = 0;
-        r = increment;
-        l_max = r - 1;
-        r_max = (l_max + increment < size) ? l_max + increment : size - 1;
-        current = 0;
+        unsigned int l = 0;
+        unsigned int r = increment;
+        unsigned int l_max = r - 1;
+        unsigned int r_max = (l_max + increment < size) ? l_max + increment : size - 1;
+        unsigned int current = 0;
 
         while (current < size)
         {
             while (l <= l_max && r <= r_max)
             {
-                if (array[r][0] < array[l][0])
+                if (array[r].id < array[l].id)
                 {
-                    tmp[current][0] = array[r][0];
-                    tmp[current][1] = array[r][1];
+                    tmp[current].id = array[r].id;
+                    tmp[current].loc = array[r].loc;
                     r++;
                 }
                 else
                 {
-                    tmp[current][0] = array[l][0];
-                    tmp[current][1] = array[l][1];
+                    tmp[current].id = array[l].id;
+                    tmp[current].loc = array[l].loc;
                     l++;
                 }
                 current++;
@@ -147,15 +142,15 @@ void merge_sort_ids(unsigned int** array, unsigned int size)
 
             while (r <= r_max)
             {
-                tmp[current][0] = array[r][0];
-                tmp[current][1] = array[r][1];
+                tmp[current].id = array[r].id;
+                tmp[current].loc = array[r].loc;
                 current++;
                 r++;
             }
             while (l <= l_max)
             {
-                tmp[current][0] = array[l][0];
-                tmp[current][1] = array[l][1];
+                tmp[current].id = array[l].id;
+                tmp[current].loc = array[l].loc;
                 current++;
                 l++;
             }
@@ -168,13 +163,13 @@ void merge_sort_ids(unsigned int** array, unsigned int size)
         }
 
         increment *= 2;
-        for (i = 0; i < size; i++)
+        for (unsigned int i = 0; i < size; i++)
         {
-            array[i][0] = tmp[i][0];
-            array[i][1] = tmp[i][1];
+            array[i].id = tmp[i].id;
+            array[i].loc = tmp[i].loc;
         }
     }
-    for (i = 0; i < size; i++)	free(tmp[i]);
+
     free(tmp);
 }
 
@@ -264,24 +259,26 @@ unsigned int find_link_by_id(unsigned int id, Link* sys, unsigned int N)
 }
 
 //Finds the location in sys of the link with id
-unsigned int find_link_by_idtoloc(unsigned int id, unsigned int** id_to_loc, unsigned int N)
+unsigned int find_link_by_idtoloc(unsigned int id, const Lookup * const id_to_loc, unsigned int N)
 {
-    unsigned int k, max, min;
-
-    k = N / 2;
-    max = N;
-    min = 0;
+    unsigned int k = N / 2;
+    unsigned int max = N;
+    unsigned int min = 0;
 
     // TODO Replace by bsearch
-    while (max != min && id_to_loc[k][0] != id)
+    while (max != min && id_to_loc[k].id != id)
     {
-        if (id_to_loc[k][0] < id)	min = k + 1;
-        else				max = k;
+        if (id_to_loc[k].id < id)
+            min = k + 1;
+        else
+            max = k;
         k = (max + min) / 2;
     }
 
     //if(id_to_loc[k][0] != id)	return N+1;
-    if (max == min)			return N + 1;
-    else				return id_to_loc[k][1];
+    if (max == min)			
+        return N + 1;
+    else
+        return id_to_loc[k].loc;
 }
 

@@ -16,16 +16,10 @@ extern int np;
 extern int my_rank;
 
 void Advance(
-    Link* sys,
-    unsigned int N,
-    unsigned int* my_sys,
-    unsigned int my_N,
+    Link *sys, unsigned int N,
+    Link **my_sys, unsigned int my_N,
     GlobalVars* globals,
-    int* assignments,
-    short int* getting,
-    unsigned int* res_list,
-    unsigned int res_size,
-    unsigned int** id_to_loc,
+    int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, const Lookup * const id_to_loc,
     Workspace* workspace,
     Forcing* forcings,
     ConnData* db_connections,

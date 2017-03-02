@@ -14,7 +14,6 @@
 
 #include "comm.h"
 #include "minmax.h"
-#include "vector_mpi.h"
 
 
 // **********  MPI related routines  **********
@@ -77,10 +76,9 @@ void Transfer_Data(TransData* my_data, Link* sys, int* assignments, GlobalVars* 
                         for (m = 0; m < steps_to_transfer; m++)
                         {
                             MPI_Pack(&(node->t), 1, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
-                            MPI_Pack_Vec(node->y_approx, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
+                            MPI_Pack(node->y_approx, dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
-                            for (unsigned short n = 0; n < num_stages; n++)
-                                MPI_Pack_Vec(v2_slice(node->k, n), my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
+                            MPI_Pack(node->k, num_stages * dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                             
                             MPI_Pack(&(node->state), 1, MPI_INT, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
@@ -154,9 +152,10 @@ void Transfer_Data(TransData* my_data, Link* sys, int* assignments, GlobalVars* 
                         node = New_Step(&current->my->list);
                         node->t = 0.0; node->state = 0;
                         MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->t), 1, MPI_DOUBLE, MPI_COMM_WORLD);
-                        MPI_Unpack_Vec(my_data->receive_buffer[i], count, &position, node->y_approx, MPI_COMM_WORLD);
-                        for (unsigned short n = 0; n < num_stages; n++)
-                            MPI_Unpack_Vec(my_data->receive_buffer[i], count, &position, v2_slice(node->k, n), MPI_COMM_WORLD);
+                        MPI_Unpack(my_data->receive_buffer[i], count, &position, node->y_approx, dim, MPI_DOUBLE, MPI_COMM_WORLD);
+                        
+                        MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * dim, MPI_DOUBLE, MPI_COMM_WORLD);
+                        
                         MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->state), 1, MPI_INT, MPI_COMM_WORLD);
                     }
 
@@ -313,10 +312,9 @@ void Transfer_Data_Finish(TransData* my_data, Link* sys, int* assignments, Globa
                             for (m = 0; m < steps_to_transfer; m++)
                             {
                                 MPI_Pack(&(node->t), 1, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
-                                MPI_Pack_Vec(node->y_approx, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
-                                for (unsigned short n = 0; n < num_stages; n++)
-                                    MPI_Pack_Vec(v2_slice(node->k, n), my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
-                                //MPI_Pack(node->k[n].ve,dim,MPI_DOUBLE,my_data->send_buffer[i],my_data->send_buffer_size[i],&position,MPI_COMM_WORLD);
+                                MPI_Pack(node->y_approx, dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
+
+                                MPI_Pack(node->k, num_stages * dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                                 MPI_Pack(&(node->state), 1, MPI_INT, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
                                 Remove_Head_Node(&current->my->list);
@@ -388,9 +386,9 @@ void Transfer_Data_Finish(TransData* my_data, Link* sys, int* assignments, Globa
                             node = New_Step(&current->my->list);
                             node->t = 0.0; node->state = 0;
                             MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->t), 1, MPI_DOUBLE, MPI_COMM_WORLD);
-                            MPI_Unpack_Vec(my_data->receive_buffer[i], count, &position, node->y_approx, MPI_COMM_WORLD);
-                            for (unsigned short n = 0; n < num_stages; n++)
-                                MPI_Unpack_Vec(my_data->receive_buffer[i], count, &position, v2_slice(node->k, n), MPI_COMM_WORLD);
+                            MPI_Unpack(my_data->receive_buffer[i], count, &position, node->y_approx, dim, MPI_DOUBLE, MPI_COMM_WORLD);
+                            MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * dim, MPI_DOUBLE, MPI_COMM_WORLD);
+
                             //MPI_Unpack(my_data->receive_buffer[i],count,&position,node->k[n].ve,dim,MPI_DOUBLE,MPI_COMM_WORLD);
                             MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->state), 1, MPI_INT, MPI_COMM_WORLD);
                         }
@@ -471,28 +469,45 @@ void Transfer_Data_Finish(TransData* my_data, Link* sys, int* assignments, Globa
 }
 
 
-void Exchange_InitState_At_Forced(Link* system, unsigned int N, unsigned int* assignments, short int* getting, unsigned int* res_list, unsigned int res_size, unsigned int** id_to_loc, GlobalVars* GlobalVars)
+void Exchange_InitState_At_Forced(
+    Link* system, unsigned int N,
+    unsigned int* assignments, short int* getting,
+    unsigned int* res_list, unsigned int res_size,
+    const Lookup * const id_to_loc,
+    GlobalVars* globals,
+    AsynchModel* model)
 {
-    unsigned int j, loc;
-
     //Find links with state forcing
-    if (GlobalVars->res_flag)
+    if (globals->res_flag)
     {
         //Setup links with forcing
-        for (j = 0; j < res_size; j++)
+        for (unsigned int i = 0; i < res_size; i++)
         {
-            loc = find_link_by_idtoloc(res_list[j], id_to_loc, N);
-            if (loc < N && assignments[loc] == my_rank)
+            unsigned int loc = find_link_by_idtoloc(res_list[i], id_to_loc, N);
+            
+            if (loc < N)
             {
-                //!!!! Not sure if this the way to go... !!!!
-                system[loc].differential(system[loc].last_t, system[loc].my->list.tail->y_approx, v2_init(0, 0), GlobalVars->global_params, system[loc].forcing_values, system[loc].qvs, system[loc].params, system[loc].state, system[loc].user, system[loc].my->list.tail->y_approx);
+                Link *link = &system[loc];
+                if (loc < N && assignments[loc] == my_rank)
+                {
+                    //!!!! Not sure if this the way to go... !!!!
+                    model->differential(
+                        link->last_t,
+                        link->my->list.tail->y_approx, link->dim,
+                        NULL, 0,
+                        globals->global_params,
+                        link->params,
+                        link->my->forcing_values,
+                        link->user,
+                        link->my->list.tail->y_approx);
 
-                //Check if this initial state needs to be sent to other procs
-                if (system[loc].child && assignments[system[loc].child->location] != my_rank)
-                    MPI_Send_Vec(system[loc].my->list.tail->y_approx, assignments[system[loc].child->location], 0, MPI_COMM_WORLD);
+                    //Check if this initial state needs to be sent to other procs
+                    if (link->child && assignments[link->child->location] != my_rank)
+                        MPI_Send(link->my->list.tail->y_approx, link->dim, MPI_DOUBLE, assignments[link->child->location], 0, MPI_COMM_WORLD);
+                }
+                else if (getting[loc])
+                    MPI_Recv(link->my->list.tail->y_approx, link->dim, MPI_DOUBLE, assignments[loc], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             }
-            else if (getting[loc])
-                MPI_Recv_Vec(system[loc].my->list.tail->y_approx, assignments[loc], 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     }
 }
@@ -630,120 +645,3 @@ void TransData_Free(TransData* data)
     free(data->totals);
     free(data);
 }
-
-
-// **********  Postgresql related routines  **********
-
-
-#if defined(HAVE_POSTGRESQL)
-
-
-//Disables postgresql notices
-void Quiet(void *arg, const char *message)
-{
-    return;
-}
-
-//Create a ConnData object
-void ConnData_Init(ConnData* const conndata, const char* connstring)
-{
-    memset(conndata, 0, sizeof(ConnData));
-    strcpy(conndata->connectinfo, connstring);
-}
-
-//Destroy a ConnData object
-void ConnData_Free(ConnData* const conninfo)
-{
-    if (conninfo)
-    {
-        //if(my_rank == 0 && conninfo->conn != NULL)	PQfinish(conninfo->conn);
-        if (conninfo->conn && PQstatus(conninfo->conn) == CONNECTION_OK)
-            PQfinish(conninfo->conn);
-        //free(conninfo->query);
-        for (unsigned int i = 0; i < conninfo->num_queries; i++)
-            free(conninfo->queries[i]);
-        //if(conninfo->queries)	free(conninfo->queries);
-        //free(conninfo->connectinfo);
-        //free(conninfo);
-    }
-}
-
-//Connect to the database with information stored in connectinfo
-int ConnectPGDB(ConnData* conninfo)
-{
-    conninfo->conn = PQconnectdb(conninfo->connectinfo);
-    if (PQstatus(conninfo->conn) == CONNECTION_BAD)
-    {
-        printf("[%i]: Error: Unable to connect to the database.\n", my_rank);
-        return 1;
-    }
-    PQsetNoticeProcessor(conninfo->conn, Quiet, NULL);	//Disable annoying notices
-    return 0;
-}
-
-//Disconnect from the database
-void DisconnectPGDB(ConnData* conninfo)
-{
-    if (PQstatus(conninfo->conn) == CONNECTION_OK)
-    {
-        PQfinish(conninfo->conn);
-        conninfo->conn = NULL;
-    }
-}
-
-//Check if an error related to an sql query occurred.
-int CheckResError(PGresult* res, char* event)
-{
-    short int status = PQresultStatus(res);
-    if (!(status == PGRES_COMMAND_OK || status == PGRES_TUPLES_OK))
-    {
-        printf("[%i]: SQL error encountered while %s. %hi\n", my_rank, event, status);
-        printf("[%i]: %s\n", my_rank, PQresultErrorMessage(res));
-
-        return 1;
-    }
-
-    return 0;
-}
-
-//Check if a query returned a certain value
-int CheckResState(PGresult* res, short int error_code)
-{
-    short int status = PQresultStatus(res);
-    if (status == error_code)	return 0;
-    else
-    {
-        printf("[%i]: Error: did not get error code %hi. Got %hi.\n", my_rank, error_code, status);
-        return 1;
-    }
-}
-
-//Check if connection to SQL database is still good
-void CheckConnConnection(ConnData* conninfo)
-{
-    if (PQstatus(conninfo->conn) == CONNECTION_BAD)
-    {
-        printf("[%i]: Connection to database lost. Attempting to reconnect...\n", my_rank);
-        PQreset(conninfo->conn);
-        printf("[%i]: Connection reestablished.\n", my_rank);
-    }
-}
-
-#else
-
-void ConnData_Init(ConnData* const conndata, const char* connstring) {}
-void ConnData_Free(ConnData* const conninfo) {}
-
-void CheckConnConnection(ConnData* conninfo) {}
-int CheckResState(PGresult* res, short int error_code) {}
-int CheckResError(PGresult* res, char* event) {}
-void DisconnectPGDB(ConnData* conninfo) {}
-
-void SwitchDB(ConnData* conninfo, char connectinfo[]) {}
-
-int ConnectPGDB(ConnData* conninfo) {}
-
-#endif
-
-
-

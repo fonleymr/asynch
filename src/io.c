@@ -10,8 +10,12 @@
 
 #include "io.h"
 
-//Creates an io object
-void OutputFunc_Init(unsigned short hydros_loc_flag, unsigned short peaks_loc_flag, unsigned short dump_loc_flag, OutputFunc* output_func)
+//Creates an OutputFunc object
+void OutputFunc_Init(
+    unsigned short hydros_loc_flag,
+    unsigned short peaks_loc_flag,
+    unsigned short dump_loc_flag,
+    OutputFunc* output_func)
 {
     //Temporary Calculations
     output_func->PrepareTempOutput = &PrepareTempFiles;
@@ -128,7 +132,7 @@ void WriteValue(FILE* outputfile, const char* specifier, char* data_storage, sho
     fprintf(outputfile, delim);
 }
 
-unsigned int WriteStep(FILE* outputfile, unsigned int id, double t, VEC y, GlobalVars* globals, VEC params, unsigned int state, void* user, long* pos_offset)
+unsigned int WriteStep(Output *output, unsigned int num_outputs, FILE* outputfile, unsigned int id, double t, double *y, unsigned int num_dof, long int* pos_offset)
 {
     unsigned int i;
 
@@ -140,38 +144,39 @@ unsigned int WriteStep(FILE* outputfile, unsigned int id, double t, VEC y, Globa
         fseek(outputfile, *pos_offset, SEEK_SET);
 
     //Write the step
-    for (i = 0; i < globals->num_outputs; i++)
+    for (i = 0; i < num_outputs; i++)
     {
-        switch (globals->output_types[i])	//!!!! Get rid of this. Try char[] and output_sizes. !!!!
+        switch (output[i].type)	//!!!! Get rid of this. Try char[] and output_sizes. !!!!
         {
         case ASYNCH_INT:
         {
-            int output_i = (globals->outputs[i].out_int)(id, t, y, globals->global_params, params, state, user);
+            int output_i = output[i].callback.out_int(id, t, y, num_dof);
             fwrite(&output_i, sizeof(int), 1, outputfile);
             break;
         }
         case ASYNCH_DOUBLE:
         {
-            double output_d = (globals->outputs[i].out_double)(id, t, y, globals->global_params, params, state, user);
+            double output_d = output[i].callback.out_double(id, t, y, num_dof);
             fwrite(&output_d, sizeof(double), 1, outputfile);
             break;
         }
         case ASYNCH_FLOAT:
         {
-            float output_f = (globals->outputs[i].out_float)(id, t, y, globals->global_params, params, state, user);
+            float output_f = output[i].callback.out_float(id, t, y, num_dof);
             fwrite(&output_f, sizeof(float), 1, outputfile);
             break;
         }
         default:
-            printf("[%i]: Error: Invalid output %s (%hi).\n", my_rank, globals->output_specifiers[i], globals->output_types[i]);
+            printf("[%i]: Error: Invalid output %s (%hi).\n", my_rank, output[i].specifier, output[i].type);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
-        total_written += globals->output_sizes[i];
+        total_written += output[i].size;
         //if(pos_offset)	*pos_offset += globals->output_sizes[i];
     }
 
     if (pos_offset)
         *pos_offset += total_written;
+    
     return total_written;
 }
 

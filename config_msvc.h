@@ -65,3 +65,6 @@
 
 /* Version number of package */
 #define VERSION "1.0"
+
+/* Define restrict keyword */
+#define restrict __restrict  

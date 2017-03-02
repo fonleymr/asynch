@@ -11,39 +11,61 @@
 
 #include "blas.h"
 
-
-// BLAS functions
-void daxpy(double alpha, VEC x, VEC y, unsigned int begin)
+// Copies a vector, x, to a vector, y
+void dcopy(const double * restrict const x, double * restrict y, unsigned int begin, unsigned int end)
 {
-    assert(begin < y.dim);
-    assert(x.dim == y.dim);
-    for (unsigned int i = begin; i < y.dim; i++)
-        y.storage[i] += alpha * x.storage[i];
-}
+    assert(x != NULL);
+    assert(y != NULL);
+    assert(begin < end);
 
-void daxpy_u(double alpha, VEC x, VEC y, unsigned int begin, unsigned int end)
-{
-    assert(begin < y.dim);
-    assert(end <= y.dim);
     for (unsigned int i = begin; i < end; i++)
-        y.storage[i] += alpha * x.storage[i];
+        y[i] = x[i];
 }
 
-void sv_mlt(double val, VEC v, unsigned int begin)
+
+#pragma omp declare simd notinbranch simdlen(8)
+// y = a*x + y
+void daxpy(double alpha, const double * restrict const x, double * restrict y, unsigned int begin, unsigned int end)
 {
-    assert(begin < v.dim);
-    unsigned int i;
-    for (i = begin; i < v.dim; i++)
-        v.storage[i] *= val;
+    assert(x != NULL);
+    assert(y != NULL);
+    assert(begin < end);
+
+#pragma ivdep
+    for (unsigned int i = begin; i < end; i++)
+        y[i] += alpha * x[i];
 }
 
-void sv_mlt_u(double val, VEC v, unsigned int begin, unsigned int end)
+//void daxpy(double alpha, VEC x, VEC y, unsigned int begin)
+//{
+//    assert(begin < y.dim);
+//    assert(x.dim == y.dim);
+//    daxpy_impl(alpha, x.storage, y.storage, begin, x.dim);
+//}
+
+//void daxpy_u(double alpha, VEC x, VEC y, unsigned int begin, unsigned int end)
+//{
+//    assert(begin < y.dim);
+//    assert(end <= y.dim);
+//    daxpy_impl(alpha, x.storage, y.storage, begin, end);
+//}
+
+//void sv_mlt(double val, VEC v, unsigned int begin)
+//{
+//    assert(begin < v.dim);
+//    unsigned int dim = v.dim;
+//    for (unsigned int i = begin; i < dim; i++)
+//        v.storage[i] *= val;
+//}
+
+// scales a vector by a constant
+void dscal(double val, double * restrict v, unsigned int begin, unsigned int end)
 {
-    assert(begin < v.dim);
-    assert(end <= v.dim);
-    unsigned int i;
-    for (i = begin; i < end; i++)
-        v.storage[i] *= val;
+    assert(v != NULL);
+    assert(begin < end);
+
+    for (unsigned int i = begin; i < end; i++)
+        v[i] *= val;
 }
 
 ////Calculates w = u + v. start is the index of the first entry of u.
@@ -190,14 +212,15 @@ void sv_mlt_u(double val, VEC v, unsigned int begin, unsigned int end)
 //}
 
 //Calculates w = u - v. start is the index of the first entries.
-void v_sub(VEC u, VEC v, VEC w, unsigned int start)
+void dsub(const double * restrict const u, const double * restrict const v, double * restrict w, unsigned int begin, unsigned int end)
 {
-    assert(u.dim > start);
-    assert(v.dim > start);
-    unsigned int size = w.dim;
+    assert(u != NULL);
+    assert(v != NULL);
+    assert(w != NULL);
+    assert(begin < end);
 
-    for (unsigned int i = start; i < size; i++)
-        v_set(w, i, v_at(u, i) - v_at(v, i));
+    for (unsigned int i = begin; i < end; i++)
+        w[i] = u[i] - v[i];
 }
 
 ////Calculates B = alpha * A
@@ -398,27 +421,27 @@ void v_sub(VEC u, VEC v, VEC w, unsigned int start)
 //
 //    return result;
 //}
-
-//Calculate the weights for the Lagrange interpolation polynomial
-//Assumes that 0 and each entry of c are node points
-//This does not store the weight for 0
-VEC lagrange_weights(unsigned short num_stages, VEC c)
-{
-    unsigned int i, j;
-    VEC w = v_init(num_stages);
-
-    for (i = 0; i < num_stages; i++)
-    {
-        w.storage[i] = 1.0 / v_at(c, i);	//For the 0 node
-        for (j = 0; j < i; j++)
-            w.storage[i] *= 1.0 / (v_at(c, i) - v_at(c, j));
-        for (j = i + 1; j < num_stages; j++)
-            w.storage[i] *= 1.0 / (v_at(c, i) - v_at(c, j));
-    }
-
-    return w;
-}
-
+//
+////Calculate the weights for the Lagrange interpolation polynomial
+////Assumes that 0 and each entry of c are node points
+////This does not store the weight for 0
+//VEC lagrange_weights(unsigned short num_stages, VEC c)
+//{
+//    unsigned int i, j;
+//    VEC w = v_init(num_stages);
+//
+//    for (i = 0; i < num_stages; i++)
+//    {
+//        w.storage[i] = 1.0 / v_at(c, i);	//For the 0 node
+//        for (j = 0; j < i; j++)
+//            w.storage[i] *= 1.0 / (v_at(c, i) - v_at(c, j));
+//        for (j = i + 1; j < num_stages; j++)
+//            w.storage[i] *= 1.0 / (v_at(c, i) - v_at(c, j));
+//    }
+//
+//    return w;
+//}
+//
 ////Evaluates the Lagrange polynomial at theta using the barycentric formula
 //double lagrange_bary(double theta,short unsigned int s,VEC c,VEC* Q,VEC w)
 //{
@@ -490,37 +513,37 @@ VEC lagrange_weights(unsigned short num_stages, VEC c)
 //    return max;
 //}
 
-//Computes the infinity norm of v. v_i is divided first by w_i. Only uses the first t elements.
-double norm_inf_u(VEC v, VEC w, unsigned int start, unsigned int t)
+//Computes the infinity norm of v. v_i is divided first by w_i.
+// max(v_i / w_i)
+double nrminf(const double * restrict const v, const double * restrict const w, unsigned int begin, unsigned int end)
 {
-    assert(v.dim > start);
-    assert(w.dim > start);
+    assert(v != NULL);
+    assert(w != NULL);
+    assert(begin < end);
 
-    unsigned int i;
-    double max = fabs(v_at(v, start) / v_at(w, start));
-    double val;
-    for (i = start + 1; i < t; i++)
+    double max = fabs(v[begin] / w[begin]);
+    for (unsigned int i = begin + 1u; i < end; i++)
     {
-        val = fabs(v_at(v, i) / v_at(w, i));
+        double val = fabs(v[i] / w[i]);
         max = (val > max) ? val : max;
     }
 
     return max;
 }
 
-//Computes the infinity norm of the vector v.
-double vector_norminf(VEC v, unsigned int start)
-{
-    unsigned int i;
-    double norm = fabs(v_at(v, start));
-    double val;
-    for (i = start + 1; i < v.dim; i++)
-    {
-        val = fabs(v_at(v, i));
-        norm = (norm < val) ? val : norm;
-    }
-    return norm;
-}
+////Computes the infinity norm of the vector v.
+//double vector_norminf(VEC v, unsigned int start)
+//{
+//    unsigned int i;
+//    double norm = fabs(v_at(v, start));
+//    double val;
+//    for (i = start + 1; i < v.dim; i++)
+//    {
+//        val = fabs(v_at(v, i));
+//        norm = (norm < val) ? val : norm;
+//    }
+//    return norm;
+//}
 
 ////Prints the vector v to stdout.
 //void Print_Vector(VEC v)

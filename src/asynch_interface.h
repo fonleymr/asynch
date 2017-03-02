@@ -1,4 +1,4 @@
-#ifndef ASYNCH_INTERFACE_H
+#if !defined(ASYNCH_INTERFACE_H)
 #define ASYNCH_INTERFACE_H
 
 #if _MSC_VER > 1000
@@ -19,7 +19,8 @@
 //#include "solvers.h"
 //#include "io.h"
 #include "data_types.h"
-#include "vector.h"
+
+#include <models/model.h>
 
 
 //#define ASYNCH_MAX_DB_CONNECTIONS 20
@@ -51,7 +52,7 @@ typedef struct MAT MAT;
 /// \param state : The current state of the state vector.
 /// \param user: User defined data.
 /// \return Returns the data to be written as output.
-typedef int (OutputIntCallback)(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+typedef int (OutputIntCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 /// 
 ///
@@ -62,8 +63,7 @@ typedef int (OutputIntCallback)(unsigned int id, double t, VEC y_i, VEC global_p
 /// \param state : The current state of the state vector.
 /// \param user: User defined data.
 /// \return Returns the data to be written as output.
-typedef double (OutputDoubleCallback)(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
-
+typedef double (OutputDoubleCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 /// 
 ///
@@ -74,7 +74,7 @@ typedef double (OutputDoubleCallback)(unsigned int id, double t, VEC y_i, VEC gl
 /// \param state : The current state of the state vector.
 /// \param user: User defined data.
 /// \return Returns the data to be written as output.
-typedef float (OutputFloatCallback)(unsigned int id, double t, VEC y_i, VEC global_params, VEC params, int state, void* user);
+typedef float (OutputFloatCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 
 typedef union OutputCallback {
@@ -84,23 +84,31 @@ typedef union OutputCallback {
 } OutputCallback;
 
 
-typedef void (PeakflowOutputCallback)(unsigned int, double, VEC, VEC, VEC, double, unsigned int, void*, char*);
+typedef void (PeakflowOutputCallback)(unsigned int ID, double peak_time, double *peak_value, double *params, double *global_params, double conversion, unsigned int area_idx, void* user, char* buffer);
 
-//Function signatures
-typedef void (DifferentialFunc)(double, VEC, VEC2, VEC, VEC, QVSData*, VEC, int, void*, VEC);           //!< Right-hand side function for ODE                                            
-typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                 //!< Right-hand side function for algebraic variables
-typedef int (CheckStateFunc)(VEC, VEC, VEC, QVSData*, unsigned int);                                    //!< Function to check what "state" the state variables are in (for discontinuities)
-typedef void (JacobianFunc)(double, VEC, VEC2, VEC, VEC, VEC, VEC2);                                    //!< jacobian of right-hand side function
-typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, Workspace*);     //!< RK solver to use
-typedef void (CheckConsistencyFunc)(VEC, VEC, VEC);                                                     //!< Function to check state variables
+////Function signatures
+//typedef void (DifferentialFunc)(double, VEC, VEC2, VEC, VEC, QVSData*, VEC, int, void*, VEC);           //!< Right-hand side function for ODE                                            
+//typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                 //!< Right-hand side function for algebraic variables
+//typedef void (JacobianFunc)(double, VEC, VEC2, VEC, VEC, VEC, VEC2);                                    //!< jacobian of right-hand side function
+//typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, Workspace*);     //!< RK solver to use
+//typedef int (CheckStateFunc)(                                  
+//    double *y, unsigned int num_dof,
+//    double *global_params, unsigned int num_global_params,
+//    double *params, unsigned int num_params,    
+//    void *user);                                                    //!< Function to check what "state" the state variables are in (for discontinuities)
+//typedef void (CheckConsistencyFunc)(
+//    double *y, unsigned int num_dof,
+//    double *params, unsigned int num_params,
+//    double *global_params, unsigned int num_global_params,
+//    void *user);                                                    //!< Function to check state variables
 
-// Custom models signatures
-typedef void (SetParamSizesFunc)(GlobalVars*, void*);
-typedef void (ConvertFunc)(VEC, unsigned int, void*);
-typedef void (RoutinesFunc)(Link*, unsigned int, unsigned int, unsigned short int, void*);
-typedef void (PrecalculationsFunc)(Link*, VEC, VEC, unsigned int, unsigned int, unsigned short int, unsigned int, void*);
-typedef int (InitializeEqsFunc)(VEC, VEC, QVSData*, unsigned short int, VEC, unsigned int, unsigned int, unsigned int, void*, void*);
-typedef int* (PartitionFunc)(Link*, unsigned int, Link**, unsigned int, unsigned int**, unsigned int*, TransData*, short int*);
+//// Custom models signatures
+//typedef void (SetParamSizesFunc)(GlobalVars*, void*);
+//typedef void (ConvertFunc)(VEC, unsigned int, void*);
+//typedef void (RoutinesFunc)(Link*, unsigned int, unsigned int, unsigned short int, void*);
+//typedef void (PrecalculationsFunc)(Link*, VEC, VEC, unsigned int, unsigned int, unsigned short int, unsigned int, void*);
+//typedef int (InitializeEqsFunc)(VEC, VEC, QVSData*, unsigned short int, VEC, unsigned int, unsigned int, unsigned int, void*, void*);
+//typedef int* (PartitionFunc)(Link*, unsigned int, Link**, unsigned int, unsigned int**, unsigned int*, TransData*, short int*);
 
 //Constructor / Destructor related routings
 
@@ -124,14 +132,12 @@ void Asynch_Free(AsynchSolver* asynch);
 //Customization related routings
 
 int Asynch_Custom_Model(
-    AsynchSolver* asynch,
-    SetParamSizesFunc *set_param_sizes,
-    ConvertFunc *convert,
-    RoutinesFunc *routines,
-    PrecalculationsFunc *precalculations,
-    InitializeEqsFunc *initialize_eqs);
+    AsynchSolver *asynch,
+    AsynchModel *model);
 
-int Asynch_Custom_Partitioning(AsynchSolver* asynch, PartitionFunc *partition);
+int Asynch_Custom_Partitioning(
+    AsynchSolver *asynch,
+    PartitionFunc *partition);
 
 //Routines to intialize network and model
 
@@ -165,7 +171,7 @@ void Asynch_Partition_Network(AsynchSolver* asynch);
 /// \param asynch A pointer to a AsynchSolver object to use.
 void Asynch_Load_Network_Parameters(AsynchSolver* asynch);
 
-/// This routine processes the dam inputs for the AsynchSolver object as set in the global file read by
+/// This routine processes the is_dam inputs for the AsynchSolver object as set in the global file read by
 // *Asynch_Parse_GBL*.
 /// 
 /// \pre This routine should be called after *Asynch_Partition_Network* and *Asynch_Load_Network_Parameters* have been called.
@@ -579,7 +585,7 @@ void Asynch_Set_Init_File(AsynchSolver* asynch, char* filename);
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \param unix_time The timestamp to set at each link.
 /// \param states The vector of the current state of each link.
-void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, VEC* states);
+void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, double* states);
 
 
 /// This routine clears all peakflow data for each link. The time to peak is set to the current local
@@ -635,8 +641,7 @@ unsigned int Asynch_Get_Size_Global_Parameters(AsynchSolver* asynch);
 /// 
 /// \param asynch A pointer to a AsynchSolver object to use.
 /// \param params Vector of global parameter values to retrieve.
-/// \return Vector of the global parameters.
-void Asynch_Get_Global_Parameters(AsynchSolver* asynch, VEC params);
+void Asynch_Get_Global_Parameters(AsynchSolver* asynch, double *params);
 
 /// This routine sets the values of the global parameters. The number of global parameters may be
 /// different from the number previously stored by Asynch. However, if the new global parameters should
@@ -649,9 +654,6 @@ void Asynch_Get_Global_Parameters(AsynchSolver* asynch, VEC params);
 /// \param params Vector of global parameter values to set.
 /// \param num_params The number of global parameters in params.
 /// \return Returns 1 if an error occurred, 0 otherwise.
-int Asynch_Set_Global_Parameters(AsynchSolver* asynch, VEC params, unsigned int num_params);
+int Asynch_Set_Global_Parameters(AsynchSolver* asynch, double *params, unsigned int num_params);
 
-
-
-#endif
-
+#endif //!defined(ASYNCH_INTERFACE_H)

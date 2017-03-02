@@ -347,7 +347,7 @@ int* Partition_System_File(Link** sys,unsigned int N,Link** leaves,unsigned int 
 	}
 
 	//Reorder my_sys so that the links with lower numbering are towards the beginning
-	merge_sort_distance(sys,*my_sys,*my_N);
+	merge_sort_by_distance(sys,*my_sys,*my_N);
 
 	//Allocate space in my_data for recieving and sending
 	for(j=0;j<np;j++)

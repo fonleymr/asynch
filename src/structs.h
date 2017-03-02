@@ -12,6 +12,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #if defined(HAVE_MPI)
 #include <mpi.h>
@@ -19,7 +20,7 @@
 
 #include "libpq-fwd.h"
 
-#include "asynch_interface.h"
+#include <asynch_interface.h>
 
 //Note: For parser, uncomment out formula and equation data here.
 //Also go through riversys.c for equation (3 instances).
@@ -70,6 +71,7 @@ typedef struct TransData TransData;
 typedef struct Workspace Workspace;
 typedef struct ConnData ConnData;
 typedef struct Forcing Forcing;
+typedef struct Lookup Lookup;
 typedef struct AsynchSolver AsynchSolver;
 
 /// Structure to store temporary memory needed for RK solvers.
@@ -77,12 +79,13 @@ typedef struct AsynchSolver AsynchSolver;
 typedef struct Workspace
 {
     //Memory for all Solvers
-    VEC sum, temp, temp2, temp3;    //!< Vectors for summations and temp workspace. size = dim of problem at each link.
+    double *sum, *temp, *temp2, *temp3;    //!< Vectors for summations and temp workspace. size = dim of problem at each link.
 
-    VEC3 temp_parent_approx;         //!< Matrix of vectors to hold temporary work from parent links. size of each is dim of problem.
-    VEC2 temp_k;                     //!< Vector of vectors to hold temporary internal stage values. size of each is num_dense.
+    double *stages_parents_approx;      //!< Matrix of vectors to hold temporary work from parent links. [num_stages][max_parents][dim]
+    double *parents_approx;         //!< Matrix of vectors to hold temporary work from parent links. [max_parents][dim]
+    double *temp_k;                     //!< Vector of vectors to hold temporary internal stage values.[num_stages][dim]    
 
-    VEC temp_k_slices[ASYNCH_MAX_SOLVER_STAGES];
+    double *temp_k_slices[ASYNCH_MAX_SOLVER_STAGES];
 
 #if defined(ASYNCH_HAVE_IMPLICIT_SOLVER)
      //Memory for Implicit Solvers
@@ -99,24 +102,28 @@ typedef struct Workspace
 /// These are intended for dense output methods, but regular RK methods could be stored here as well.
 typedef struct RKMethod
 {
-    VEC2 A;                  //!< A coefficients
-    VEC b;                  //! <b coefficients
-    VEC b_theta;            //!< b coefficients evaluated at a value theta in [0,1]
-    VEC b_theta_deriv;
-    VEC c;                  //!< c coefficients
-    void(*dense_b)(double, VEC);        //!< Function to evaluate b at a value theta in [0,1]
-    void(*dense_bderiv)(double, VEC);   //!< Derivative of b polynomials
-    VEC e;                              //!< e vector for error coefficients
-    VEC d;                              //!< d vector for dense error coefficients
-    unsigned short int s;               //!< Number of stages
+    unsigned short int num_stages;      //!< Number of stages
+
+    const double *A;                    //!< A coefficients [num_stages][num_stages]
+    double *b;                          //! <b coefficients [num_stages]
+    double *b_theta;                    //!< b coefficients evaluated at a value theta in [0,1]
+    double *b_theta_deriv;
+    const double *c;                    //!< c coefficients [num_stages]
+    const double *e;                    //!< e vector for error coefficients [num_stages + 1]
+    const double *d;                    //!< d vector for dense error coefficients [num_stages + 1]
+
+    void(*dense_b)(double, double *);        //!< Function to evaluate b at a value theta in [0,1]
+    void(*dense_bderiv)(double, double *);   //!< Derivative of b polynomials
+    
     unsigned short int unique_c;        //!< Number of unique values in c
     unsigned short int e_order;         //!< Error order + 1
     unsigned short int d_order;         //!< Dense error order + 1
     double e_order_ratio;               //!< e_order / Error order
     double d_order_ratio;               //!< d_order / Dense error order
-    VEC w;                              //!< Weights for lagrange polynomial
     unsigned short int exp_imp;         //!< 0 if method is explicit, 1 if implicit
     unsigned short int localorder;      //!< Local order of the method
+
+    double *w;                          //!< Weights for lagrange polynomial
 } RKMethod;
 
 /// Holds the error estimation information for a link.
@@ -126,18 +133,19 @@ typedef struct ErrorData
     double facmax;          //!< Parameter for error estimation
     double facmin;          //!< Parameter for error estimation
     double fac;             //!< Parameter for error estimation
-    VEC abstol;             //!< Absolute tolerance
-    VEC reltol;             //!< Relative tolerance
-    VEC abstol_dense;       //!< Absolute tolerance for dense output
-    VEC reltol_dense;       //!< Relative tolerance for dense output
+    double *abstol;         //!< Absolute tolerance [num_dof]
+    double *reltol;         //!< Relative tolerance [num_dof]
+    double *abstol_dense;   //!< Absolute tolerance for dense output [num_dof]
+    double *reltol_dense;   //!< Relative tolerance for dense output [num_dof]
+
 } ErrorData;
 
 /// Node for a linked list of the numerical solution for a link. Each node holds the numerical solution at time t.
 ///
 typedef struct RKSolutionNode
 {
-    VEC2 k;                 //!< Array of all k values at time t
-    VEC y_approx;           //!< Approximate solution at time t
+    double *k;              //!< Array of all k values at time t [num_stages][num_dense_dof]
+    double *y_approx;       //!< Approximate solution at time t [num_dof]
     double t;               //!< The time to which the data in this node corresponds
     struct RKSolutionNode* next;    //!< Next node in the linked list
     struct RKSolutionNode* prev;    //!< Previous node in the linked list
@@ -151,20 +159,27 @@ typedef struct RKSolutionList
     RKSolutionNode* nodes;      //!< A pointer to the nodes in this list. Used for allocation/deallocation.
     RKSolutionNode* head;       //!< The beginning of the list. This node has the small t value.
     RKSolutionNode* tail;       //!< The end of the list. This node has the largest t value.
-    //unsigned int dim;         //!< The dimension of the problem. This is the size of all y_approx vectors in each node.
     unsigned short int num_stages;       //!< The number of stages in the RK method used to create these approximations.
 
-    VEC2 y_storage;
-    VEC3 k_storage;
+    double *y_storage;         //!< Storage for all the states [list_length][num_dof]
+    double *k_storage;         //!< Storage for all the k nodes [list_length][num_stages][num_dense_dof]
 } RKSolutionList;
+
+
+typedef struct DataPoint {
+    double time;    // Time the forcing changes
+    float value;    // New value at time
+} DataPoint;
+
 
 /// Structure to contain the forcing data of a link.
 ///
-typedef struct ForcingData
+typedef struct TimeSerie
 {
-    double** data;           //!< 2D array with 2 columns. First column is time the rainfall changes to the rate in the second column
-    unsigned int nrows;     //!< Number of rows in rainfall
-} ForcingData;
+    //TODO use 1d array
+    DataPoint *data;            //!< Array of DataPoint
+    unsigned int num_points;    //!< Number of DataPoint in data
+} TimeSerie;
 
 /// Structure to contain the discharge vs storage data of a link.
 ///
@@ -203,19 +218,28 @@ typedef struct ConnData
 typedef struct OutputFunc
 {
     //Temporary Calculations
-    FILE* (*PrepareTempOutput)(struct Link*, unsigned int, int*, struct GlobalVars*, unsigned int*, unsigned int, unsigned int, char*, unsigned int**);
+    FILE* (*PrepareTempOutput)(struct Link*, unsigned int, int*, struct GlobalVars*, unsigned int*, unsigned int, unsigned int, char*, const Lookup * const);
 
     //Prepare Final Output
     void (*PrepareOutput)(struct GlobalVars*, struct ConnData*);
     int (*PreparePeakflowOutput)(struct GlobalVars*, unsigned int);
 
     //Create Final Output
-    int (*CreateOutput)(struct Link*, struct GlobalVars*, unsigned int, unsigned int*, unsigned int, unsigned int, unsigned int**, int*, char*, char*, struct ConnData*, FILE**);
-    int (*CreatePeakflowOutput)(struct Link*, struct GlobalVars*, unsigned int, int*, unsigned int*, unsigned int, unsigned int**, struct ConnData*);
+    int (*CreateOutput)(struct Link*, struct GlobalVars*, unsigned int, unsigned int*, unsigned int, unsigned int, const Lookup * const, int*, char*, char*, struct ConnData*, FILE**);
+    int (*CreatePeakflowOutput)(struct Link*, struct GlobalVars*, unsigned int, int*, unsigned int*, unsigned int, const Lookup * const, struct ConnData*);
 
     //Create Snapshot
     int (*CreateSnapShot)(struct Link*, unsigned int, int*, struct GlobalVars*, char*, struct ConnData*);
 } OutputFunc;
+
+
+typedef struct Output {
+    OutputCallback callback;
+    char* name;
+    const char* specifier;
+    enum AsynchTypes type;
+    short size;
+} Output;
 
 
 /// Structure to contain all data that is global to the river system.
@@ -247,13 +271,16 @@ typedef struct GlobalVars
     //unsigned int no_ini_start;    //!< Starting index of differential variables not read from disk
     unsigned short int uses_dam;    //!< 1 if this type can use dams, 0 else
     //unsigned short int rain_flag; //!< 0 for no rain, 1 for .str file, 2 for binary files, 3 for SQL database, 4 for uniform rain
-    VEC global_params;              //!< List of global parameters
-    unsigned int params_size;       //!< Size of params at each link without a dam
-    //unsigned int iparams_size;    //!< Size of iparams at each link
+    
+    double *global_params;              //!< List of global parameters
+    unsigned int num_global_params;    //!< Number of global parameters
+    
+    //unsigned int params_size;       //!< Size of params at each link without a dam
+    ////unsigned int iparams_size;    //!< Size of iparams at each link
     unsigned int dam_params_size;   //!< Size of params at each link with a dam
-    unsigned int disk_params;       //!< Number of parameters to read from disk
-    unsigned int area_idx;          //!< Index of upstream area (A_i) in params
-    unsigned int areah_idx;         //!< Index of hillslope area (A_h) in params
+    //unsigned int disk_params;       //!< Number of parameters to read from disk
+    //unsigned int area_idx;          //!< Index of upstream area (A_i) in params
+    //unsigned int areah_idx;         //!< Index of hillslope area (A_h) in params
     char* rain_filename;
     char* init_filename;
     char* rvr_filename;
@@ -306,13 +333,15 @@ typedef struct GlobalVars
 
     //Outputs
     unsigned int num_states_for_printing;   //!< Number of states used for printing
+    unsigned int* print_indices;            //!< List of indices in solution vectors where data is written to output [num_states_for_printing]
+
     unsigned int num_outputs;               //!< Number of outputs
-    unsigned int* print_indices;            //!< List of indices in solution vectors where data is written to output (size is num_states_for_printing)
-    OutputCallback *outputs;
-    char** output_names;
-    const char** output_specifiers;
-    enum AsynchTypes* output_types;
-    short int* output_sizes;
+    Output *outputs;
+    //OutputCallback *outputs;
+    //char** output_names;
+    //const char** output_specifiers;
+    //enum AsynchTypes* output_types;
+    //short int* output_sizes;
 
     OutputFunc output_func;
 
@@ -329,12 +358,30 @@ typedef struct GlobalVars
 } GlobalVars;
 
 
+//typedef struct ForcingData
+//{
+//    TimeSerie data;             //!< Time serie of forcing data for this link
+//    double change_time;         //!< Next time in which there is a change in rainfall, relative to last_t
+//    double value;               //!< The current forcing values for this link at time last_t
+//    unsigned int indice;        //!< forcing_indices[i] has index of data.data[i] that is currently used
+//} ForcingData;
+
+
 /// This structure holds all the data for a link in the river system that belong to the current process.
 ///
 typedef struct LinkData
 {
     RKSolutionList list;            //!< The list for the calculated numerical solution
     ErrorData error_data;           //!< Error estimiation information for this link
+
+    //Forcings data
+    //TODO merge into one struct
+    //ForcingData *forcing_data;          //!< Array of forcing data for this link [num_forcing]
+
+    TimeSerie *forcing_data;            //!< Array of forcing data for this link [num_forcing]
+    double *forcing_change_times;       //!< Next time in which there is a change in rainfall, relative to last_t [num_forcing]
+    double *forcing_values;             //!< The current forcing values for this link at time last_t [num_forcing]
+    unsigned int *forcing_indices;      //!< forcing_indices[i] has index of forcing_buff[i]->rainfall[*][0] that is currently used [num_forcing]
     
 } LinkData;
 
@@ -343,69 +390,72 @@ typedef struct LinkData
 ///
 typedef struct Link
 {
+    unsigned int ID;                    //!< ID for the link. This is how a link is referenced in data files
+    unsigned int location;              //!< Index of this link in the system array
+
     LinkData *my;                       //!< Link data that are used only if the link belongs to the current proc
 
-    RKMethod *method;                   //!< RK method to use for solving the ODEs for this link
+    RKMethod *method;                   //!< Pointer to a RK method to use for solving the ODEs for this link
     //RKSolutionList *list;               //!< The list for the calculated numerical solution
     //ErrorData* error_data;              //!< Error estimation information for this link
     
-    VEC params;                     //!< Parameters unique for the ODE for this link
-    //IVEC iparams;                     //!< Integer (long) parameters for the ODE for this link
+    double *params;                     //!< Parameters unique for the ODE for this link
+    unsigned int num_params;            //!< Number of parameters unique for the ODE for this link
 
-    DifferentialFunc *differential; //!< Right-hand side function for ODE
-    JacobianFunc *jacobian;         //!< jacobian of right-hand side function
-    AlgebraicFunc *algebraic;       //!< Function for algebraic variables
-    CheckStateFunc *state_check;    //!< Function to check what "state" the state variables are in (for discontinuities)
-    RKSolverFunc *solver;           //!< RK solver to use
-    CheckConsistencyFunc *check_consistency; //!< Function to check state variables
+    //DifferentialFunc *differential; //!< Right-hand side function for ODE
+    //JacobianFunc *jacobian;         //!< jacobian of right-hand side function
+    //AlgebraicFunc *algebraic;       //!< Function for algebraic variables
+    //CheckStateFunc *check_state;    //!< Function to check what "state" the state variables are in (for discontinuities)
+    //RKSolverFunc *solver;           //!< RK solver to use
+    //CheckConsistencyFunc *check_consistency; //!< Function to check state variables
 
     double h;                           //!< Current step size
     double last_t;                      //!< Last time in which a numerical solution was calculated
     double print_time;                  //!< Numerical solution is written to disk in increments of print_time
     double next_save;                   //!< Next time to write numerical solution to disk
-    unsigned int ID;                    //!< ID for the link. This is how a link is referenced in data files
-    unsigned int location;              //!< Index of this link in the system array
     short int ready;                    //!< Flag that is 1 if a step can be taken, 0 if not
+    
+    //Topology
     unsigned short int num_parents;     //!< Number of upstream links
+    struct Link **parents;             //!< An array of all upstream links (parents)
+    struct Link *child;                //!< The downstream link (child)
+
     unsigned int disk_iterations;       //!< Number of iterations stored on disk
+
     double peak_time;                   //!< The time at which the largest discharge has occurred for this link
-    VEC peak_value;                     //!< The value of the largest discharge for this link
-    struct Link** parents;             //!< An array of all upstream links (parents)
-    struct Link* child;                //!< The downstream link (child)
+    double *peak_value;                 //!< The value of the largest discharge for this link [num_dof]
+    
     int current_iterations;             //!< Number of stored iterations in list
     int steps_on_diff_proc;             //!< Number of steps for this link that are stored on another process
     int iters_removed;                  //!< Total number of iterations removed that has not been sent
     unsigned int distance;              //!< Maximum number of links upstream to get to an external link
-    int rejected;                       //!< 0 if the previous step was accepted, 1 if rejected, 2 for discontinuity
+    
+    short rejected;                       //!< 0 if the previous step was accepted, 1 if rejected, 2 for discontinuity
+    
     unsigned short int save_flag;       //!< 1 if saving data for this link, 0 if not
     unsigned short int peak_flag;       //!< 1 if saving peak flow data for this link, 0 if not
     //unsigned int** upstream;          //!< upstream[i] is a list of links (loc) upstream (inclusive) to parent i
     //unsigned int* numupstream;        //!< numupstream[i] is size of upstream[i]
-    struct QVSData* qvs;               //!< Holds the discharge vs storage data
+    //struct QVSData* qvs;               //!< Holds the discharge vs storage data
     //fpos_t pos;                       //!< Current location in temporary output file
     long int pos_offset;
     unsigned int expected_file_vals;    //!< Expected number of entries in temp output file
-    unsigned short int dam;             //!< 0 if no dam at the link, 1 if dam present
-    unsigned short int res;             //!< 0 if this link has no reservoir feed, 1 if it does
+    bool has_dam;                       //!< 0 if no dam at the link, 1 if dam present
+    bool has_res;                       //!< 0 if this link has no reservoir feed, 1 if it does
+    
     unsigned int dim;                   //!< Dimension of the problem at this link
     unsigned int diff_start;            //!< Starting index of differential variables in solution vectors
     unsigned int no_ini_start;          //!< Starting index of differential variables not read from disk
-    unsigned int num_dense;             //!< Number of states where dense output is calculated
-    unsigned int* dense_indices;        //!< List of indices in solution where dense output is needed
-
-    //Forcings data
-    //unsigned int num_forcings;
-    ForcingData** forcing_buff;         //!< Forcing data for this link
-    double* forcing_change_times;       //!< Next time in which there is a change in rainfall, relative to last_t
-    VEC forcing_values;                 //!< The current rainfall value for this link at time last_t
-    unsigned int* forcing_indices;      //!< forcing_indices[i] has index of forcing_buff[i]->rainfall[*][0] that is currently used
+    
+    unsigned int num_dense;             //!< Number of states where dense output is calculated (usually only discharge is used)
+    unsigned int *dense_indices;        //!< List of indices in solution where dense output is needed
 
     //For output data
-    void* output_user;
-    void* peakoutput_user;
+    void *output_user;
+    void *peakoutput_user;
 
     //For custom data
-    void* user;
+    void *user;
 
     //Parser data
     //struct Formula* equations;
@@ -434,23 +484,30 @@ typedef struct Link
     unsigned int* discont_order_send;   //!< List of discontinuity derivative orders to send downstream
 } Link;
 
-typedef struct Model
-{
-    SetParamSizesFunc *set_param_sizes;
-    ConvertFunc *convert;
-    RoutinesFunc *routines;
-    PrecalculationsFunc *precalculations;
-    InitializeEqsFunc *initialize_eqs;
-    PartitionFunc *partition;
-} Model;
+
+typedef unsigned int (ForcingGetPassesCallback)(
+    Forcing*,
+    double maxtime,
+    ConnData* db_connections);
+
+typedef double (ForcingGetNextCallback)(
+    Link *sys, unsigned int N,
+    Link **my_sys, unsigned int my_N,
+    int* assignments,
+    const GlobalVars * const globals,
+    Forcing* forcing,
+    ConnData* db_connections,
+    const Lookup * const id_to_loc,
+    unsigned int forcing_idx);
 
 
 /// This structure holds all the data for a forcing in the river system.
 ///
 typedef struct Forcing
 {
-    unsigned int(*GetPasses)(struct Forcing*, double maxtime, struct ConnData* conninfo);
-    double(*GetNextForcing)(struct Link*, unsigned int, unsigned int*, unsigned int, int*, struct GlobalVars*, struct Forcing*, struct ConnData*, unsigned int**, unsigned int);
+    ForcingGetPassesCallback *GetPasses;
+    ForcingGetNextCallback *GetNextForcing;
+    
     unsigned short int flag;
     char* filename;
     unsigned int increment;
@@ -463,7 +520,7 @@ typedef struct Forcing
     //char* dump_location;
     //char* halt_filename;
     //unsigned int num_rainsteps;
-    ForcingData* GlobalForcing;
+    TimeSerie global_forcing;
     unsigned int passes;
     int maxfileindex;
     double maxtime;
@@ -508,6 +565,15 @@ typedef struct TransData
     unsigned int* totals;           //!< workspace for flushing of size np
 } TransData;
 
+
+typedef struct Lookup
+{
+    unsigned int id;
+    unsigned int loc;
+
+} Lookup;
+
+
 /// This is the main structure that holds the state of the server and associated data structures for a simulation.
 ///
 typedef struct AsynchSolver
@@ -531,12 +597,15 @@ typedef struct AsynchSolver
     short int setup_savelists;
     short int setup_finalized;
 
+    //Model
+    AsynchModel* model;         //!< The object model
+
     //Solver Stuff
-    ErrorData* errors_tol;	    //!< Object for global error data
-    GlobalVars* globals;		//!< Global information
+    ErrorData errors_tol;	    //!< Object for global error data
+    GlobalVars *globals;		//!< Global information
     
-    unsigned int N;			    //!< Number of links in sys
-    Link* sys;			        //!< Network of links
+    Link *sys;			        //!< Array of links in the network [dim]
+    unsigned int N;			    //!< Number of links in sys    
     
     unsigned int num_methods;	//!< Number of methods in rk_methods
     RKMethod* rk_methods;		//!< List of RK methods available
@@ -544,7 +613,9 @@ typedef struct AsynchSolver
     TransData* my_data;		    //!< Data for communication between procs
     short int *getting;		    //!< List of data links to get information about
     int *assignments;		    //!< Link with sys location i is assigned to proc assignments[i]
-    unsigned int* my_sys;		//!< Location in sys of links assigned to this proc
+    
+    Link **my_sys;		        //!< Array of pointer to links in the network assigned to this proc [dim]
+    //unsigned int* my_sys;		//!< Links in sys of links assigned to this proc
     unsigned int my_N;		    //!< Number of links in sys assigned to this proc
     
     unsigned int save_size;		//!< Number of links in save_list
@@ -561,15 +632,16 @@ typedef struct AsynchSolver
     unsigned int res_size;
     unsigned int my_res_size;
 
-    unsigned int** id_to_loc;	//!< Lookup table to convert from ids to sys locations
+    Lookup *id_to_loc;	        //!< Lookup table to convert from ids to sys locations
+    
     Workspace workspace;		//!< Temporary workspace
+
     char rkdfilename[ASYNCH_MAX_PATH_LENGTH];	//!< Filename for .rkd file
     FILE* outputfile;		    //!< File handle for outputing temporary data
     FILE* peakfile;			    //!< File handle for the peakflow data
     char peakfilename[ASYNCH_MAX_PATH_LENGTH];		    //!< Filename for .pea file
     ConnData db_connections[ASYNCH_MAX_DB_CONNECTIONS];	//!< Database connection information
     Forcing forcings[ASYNCH_MAX_DB_CONNECTIONS - ASYNCH_DB_LOC_FORCING_START];	//!< Forcing information
-    Model* custom_model;
     void* ExternalInterface;
 } AsynchSolver;
 

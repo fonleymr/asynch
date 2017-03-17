@@ -126,6 +126,15 @@
     <ClCompile Include="..\..\..\src\steppers\implicit.c">
       <Filter>Source Files\steppers</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\forcings_io.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\db.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\rksteppers.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(RootDir)\src\asynch_interface.h">
@@ -179,9 +188,6 @@
     <ClInclude Include="$(RootDir)\src\system.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\libpq-fwd.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\src\blas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -214,6 +220,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\src\solvers\lagrange.h">
       <Filter>Source Files\solvers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\structs_fwd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\libpq_fwd.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

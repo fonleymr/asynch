@@ -108,11 +108,12 @@
     <ClInclude Include="$(RootDir)\src\structs.h" />
     <ClInclude Include="$(RootDir)\src\system.h" />
     <ClInclude Include="..\..\..\src\consistency.h" />
-    <ClInclude Include="..\..\..\src\libpq-fwd.h" />
+    <ClInclude Include="..\..\..\src\libpq_fwd.h" />
     <ClInclude Include="..\..\..\src\models\check_consistency.h" />
     <ClInclude Include="..\..\..\src\models\check_state.h" />
     <ClInclude Include="..\..\..\src\models\model.h" />
     <ClInclude Include="..\..\..\src\solvers\lagrange.h" />
+    <ClInclude Include="..\..\..\src\structs_fwd.h" />
     <ClInclude Include="..\..\..\src\vector.h" />
     <ClInclude Include="..\..\..\src\vector_mpi.h" />
   </ItemGroup>
@@ -144,9 +145,12 @@
     <ClCompile Include="$(RootDir)\src\riversys.c" />
     <ClCompile Include="$(RootDir)\src\sort.c" />
     <ClCompile Include="$(RootDir)\src\system.c" />
+    <ClCompile Include="..\..\..\src\db.c" />
+    <ClCompile Include="..\..\..\src\forcings_io.c" />
     <ClCompile Include="..\..\..\src\models\252.c" />
     <ClCompile Include="..\..\..\src\models\check_consistency.c" />
     <ClCompile Include="..\..\..\src\models\check_state.c" />
+    <ClCompile Include="..\..\..\src\rksteppers.c" />
     <ClCompile Include="..\..\..\src\solvers\dopri5_dense.c" />
     <ClCompile Include="..\..\..\src\solvers\lagrange.c" />
     <ClCompile Include="..\..\..\src\solvers\radau.c" />

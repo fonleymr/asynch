@@ -12,8 +12,8 @@
 #include <mpi.h>
 #endif 
 
-#include "structs_fwd.h"
-#include "data_types.h"
+#include <structs_fwd.h>
+#include <data_types.h>
 
 #include <models/model.h>
 

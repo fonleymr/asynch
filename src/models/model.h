@@ -14,19 +14,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// Forward definitions
-typedef struct ErrorData ErrorData;
-typedef struct GlobalVars GlobalVars;
-typedef struct LinkData LinkData;
-typedef struct Link Link;
-typedef struct RKMethod RKMethod;
-typedef struct TransData TransData;
-typedef struct Workspace Workspace;
-typedef struct ConnData ConnData;
-typedef struct Forcing Forcing;
-typedef struct AsynchSolver AsynchSolver;
 
-typedef struct QVSData QVSData;
+#include <structs_fwd.h>
 
 
 // Right-hand side function for ODE  

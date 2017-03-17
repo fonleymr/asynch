@@ -69,8 +69,7 @@ static void partition(Link* sys, unsigned int N, Link** leaves, unsigned int num
 }
 
 
-//#pragma omp declare simd notinbranch uniform(num_dof, num_parents, global_params, params, forcing_values, user) 
-void TopLayerHillslopeSIMD(
+void top_layer_hillslope(
     double t,
     const double * const y_i, unsigned int num_dof,
     const double * const y_p, unsigned int num_parents,
@@ -192,7 +191,7 @@ static const AsynchModel model_252 = {
 
     2,              // num_forcings
 
-    &TopLayerHillslopeSIMD,     // differential
+    &top_layer_hillslope,     // differential
     NULL,                   // jacobian
     NULL,                   // algebraic
     NULL,                   // check_state

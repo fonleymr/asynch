@@ -19,16 +19,9 @@
 #include <mpi.h>
 #endif
 
-#include "libpq_fwd.h"
-#include "structs_fwd.h"
+#include <libpq_fwd.h>
 
 #include <asynch_interface.h>
-
-//Note: For parser, uncomment out formula and equation data here.
-//Also go through riversys.c for equation (3 instances).
-//Also make sure headers are included everywhere. Uncomment the functions in problems.c and .h.
-//And system.c (1 block).
-//Did I forget anything?
 
 //Constants
 #define ASYNCH_MAX_DB_CONNECTIONS 20
@@ -79,12 +72,12 @@ struct Workspace
 
 #if defined(ASYNCH_HAVE_IMPLICIT_SOLVER)
      //Memory for Implicit Solvers
-    int* ipiv;              //!< Array to hold pivots from LU decomps. length = s*dim.
-    VEC rhs;                //!< Holds right hand side of linear systems. size = s*dim.
-    //MAT* CoefMat;         //!< Holds coefficient matrix of linear systems. size = s*dim x s*dim.
-    MAT JMatrix;            //!< Holds jacobian matrix of the right hand side function of the ode. size = dim x dim.
-    VEC* Z_i;               //!< Space for s internal stages. Each had size = dim.
-    VEC err;                //!< Space for error approximations. size = dim.
+    int *ipiv;          //!< Array to hold pivots from LU decomps. length = s*dim.
+    double *rhs;        //!< Holds right hand side of linear systems. size = s*dim.
+    //MAT* CoefMat;     //!< Holds coefficient matrix of linear systems. size = s*dim x s*dim.
+    double *JMatrix;    //!< Holds jacobian matrix of the right hand side function of the ode. size = dim x dim.
+    double *Z_i;        //!< Space for s internal stages. Each had size = dim.
+    double *err;        //!< Space for error approximations. size = dim.
 #endif // defined(ASYNCH_HAVE_IMPLICIT_SOLVER)
 };
 
@@ -237,6 +230,7 @@ typedef struct Output {
 struct GlobalVars
 {
     unsigned short int type;        //!< Index for the model used
+    AsynchModel *model;             //!< A pointer to the model
 
     double maxtime;                 //!< Integrate up to this time (duration) [minutes]
     double t_0;                     //!< Initial time to start integration

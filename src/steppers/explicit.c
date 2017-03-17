@@ -14,28 +14,13 @@
 #include <rksteppers.h>
 
 
-extern AsynchModel *the_model;
-
-
-
-void TopLayerHillslopeSIMD(
-    double t,
-    const double * const y_i, unsigned int num_dof,
-    const double * const y_p, unsigned int num_parents,
-    const double * const global_params,
-    const double * const params,
-    const double * const forcing_values,
-    void *user,
-    double *ans);
-
-
 //Computes one step of a method to solve the ODE at a link. Assumes parents have enough computed solutions.
 //Link* link_i: the link to apply a numerical method to.
 //Returns 1 if the step was successfully taken, 0 if the step was rejected.
 int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int idx;
-    //VEC** k;
+    AsynchModel *model = globals->model;
     
     RKSolutionNode *curr_node[ASYNCH_LINK_MAX_PARENTS], *node, *new_node;
     Link* currentp;
@@ -112,7 +97,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
                 parent_approx[idx] = approx;
             }
 
-            the_model->check_consistency(parent_approx, currentp->dim, currentp->params, the_model->num_params, globals->global_params, the_model->num_global_params, currentp->user);
+            model->check_consistency(parent_approx, currentp->dim, currentp->params, model->num_params, globals->global_params, model->num_global_params, currentp->user);
         }
     }
 
@@ -151,14 +136,14 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
         }
 
         //link_i->check_consistency(sum, params, globals->global_params);
-        the_model->check_consistency(sum, link_i->dim, link_i->params, the_model->num_params, globals->global_params, the_model->num_global_params, link_i->user);
+        model->check_consistency(sum, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
 
         //[num_stages][max_parents][dim]
         double *y_p = workspace->stages_parents_approx + i * globals->max_parents * link_i->dim;
 
         double dt = c[i] * h;
 
-        the_model->differential(
+        model->differential(
             t + dt,
             sum, link_i->dim,
             y_p, link_i->num_parents,
@@ -175,7 +160,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
         //daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 0, link_i->dim);
         daxpy(h * b[i], temp_k[i], new_y, 0, link_i->dim);
 
-    the_model->check_consistency(new_y, link_i->dim, link_i->params, the_model->num_params, globals->global_params, the_model->num_global_params, link_i->user);
+    model->check_consistency(new_y, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
     new_node->state = link_i->state;
 
     /*
@@ -346,7 +331,7 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
                     sum[idx] = approx;
                 }
 
-                the_model->check_consistency(sum, link_i->dim, link_i->params, the_model->num_params, globals->global_params, the_model->num_global_params, link_i->user);
+                model->check_consistency(sum, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
 
                 WriteStep(globals->outputs, globals->num_outputs, outputfile, link_i->ID, link_i->next_save, sum, link_i->dim, &(link_i->pos_offset));
 

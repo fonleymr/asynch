@@ -10,9 +10,7 @@
 #endif
 
 #include <structs.h>
-//#include "system.h"
-//#include "sort.h"
-#include <libpq-fwd.h>
+#include <libpq_fwd.h>
 
 //PostgreSQL Database Methods
 void ConnData_Init(ConnData* const conn, const char* connstring);

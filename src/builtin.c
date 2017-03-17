@@ -11,7 +11,7 @@
 #include <unistd.h>
 #endif
 
-#include <consistency.h>
+#include <check_consistency.h>
 #include <rksteppers.h>
 #include <problems.h>
 #include "builtin.h"

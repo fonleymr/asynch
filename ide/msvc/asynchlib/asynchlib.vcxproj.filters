@@ -78,8 +78,35 @@
     <ClCompile Include="..\..\..\src\builtin.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\rksteppers.c">
+    <ClCompile Include="..\..\..\src\advance.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\models\check_state.c">
+      <Filter>Source Files\models</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\models\252.c">
+      <Filter>Source Files\models</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\models\check_consistency.c">
+      <Filter>Source Files\models</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\solvers\dopri5_dense.c">
+      <Filter>Source Files\solvers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\solvers\lagrange.c">
+      <Filter>Source Files\solvers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\solvers\radau.c">
+      <Filter>Source Files\solvers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\solvers\rk3_2_dense.c">
+      <Filter>Source Files\solvers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\solvers\rk4_3_dense.c">
+      <Filter>Source Files\solvers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\steppers\assim.c">
+      <Filter>Source Files\steppers</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\steppers\explicit.c">
       <Filter>Source Files\steppers</Filter>
@@ -96,41 +123,8 @@
     <ClCompile Include="..\..\..\src\steppers\forced.c">
       <Filter>Source Files\steppers</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\advance.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\solvers\dopri5_dense.c">
-      <Filter>Source Files\solvers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\solvers\rk4_3_dense.c">
-      <Filter>Source Files\solvers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\solvers\rk3_2_dense.c">
-      <Filter>Source Files\solvers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\solvers\radau.c">
-      <Filter>Source Files\solvers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\solvers\lagrange.c">
-      <Filter>Source Files\solvers</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\models\252.c">
-      <Filter>Source Files\models</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\models\check_consistency.c">
-      <Filter>Source Files\models</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\models\check_state.c">
-      <Filter>Source Files\models</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\forcings_io.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\db.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\src\rkmethods.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\..\src\steppers\implicit.c">
+      <Filter>Source Files\steppers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -194,26 +188,32 @@
     <ClInclude Include="..\..\..\src\builtin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\rksteppers.h">
+    <ClInclude Include="$(RootDir)\src\rainfall.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\consistency.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\vector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\vector_mpi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\advance.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\models\check_consistency.h">
+    <ClInclude Include="..\..\..\src\models\model.h">
       <Filter>Header Files\models</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\models\check_state.h">
       <Filter>Header Files\models</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\models\model.h">
+    <ClInclude Include="..\..\..\src\models\check_consistency.h">
       <Filter>Header Files\models</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\src\forcings_io.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\src\db.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\..\..\src\solvers\lagrange.h">
+      <Filter>Source Files\solvers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

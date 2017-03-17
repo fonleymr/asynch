@@ -1108,45 +1108,6 @@ int Create_Rain_Database_Irregular(
 }
 
 
-////Sets the rain data of link current to 0 for all times.
-//void SetRain0(Link* sys, unsigned int my_N, double maxtime, unsigned int* my_sys, GlobalVars* GlobalVars, Forcing* forcing, unsigned int forcing_idx)
-//{
-//    unsigned int i, j, k;
-//    Link* current;
-//
-//    //Check that space for rain data has been allocated.
-//    if (my_sys[0]->my->forcing_data[forcing_idx] == NULL)
-//    {
-//        //k = 2;
-//        k = forcing->increment + 3;
-//        for (i = 0; i < my_N; i++)
-//        {
-//            my_sys[i]->my->forcing_data[forcing_idx] = (TimeSerie*)malloc(sizeof(TimeSerie));
-//            my_sys[i]->my->forcing_data[forcing_idx].data = (double**)malloc(k * sizeof(double*));
-//            my_sys[i]->my->forcing_data[forcing_idx].num_points = k;
-//            for (j = 0; j < k; j++)	my_sys[i]->my->forcing_data[forcing_idx].data[j] = (double*)malloc(2 * sizeof(double));
-//        }
-//    }
-//
-//    for (i = 0; i < my_N; i++)
-//    {
-//        my_sys[i]->my->forcing_data[forcing_idx].data[0].time = 0.0;
-//        my_sys[i]->my->forcing_data[forcing_idx].data[0].value = 0.0;
-//        my_sys[i]->my->forcing_data[forcing_idx].data[1].time = maxtime * (1.1) + 1.0;
-//        my_sys[i]->my->forcing_data[forcing_idx].data[1].value = -1.0;
-//    }
-//
-//    //Calculate the first rain change time and set rain_value
-//    for (i = 0; i < my_N; i++)
-//    {
-//        current = &my_sys[i];
-//        current->my->forcing_values[forcing_idx] = 0.0;
-//        current->my->forcing_indices[forcing_idx] = 0;
-//        current->my->forcing_change_times[forcing_idx] = current->my->forcing_data[forcing_idx].data[1].time;
-//    }
-//}
-
-
 static int days_in_month(int mon, int year)
 {
     const int days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };

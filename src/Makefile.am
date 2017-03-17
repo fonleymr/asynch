@@ -11,6 +11,6 @@ asynch_SOURCES = optparse.c asynchdist.c
 asynch_LDADD = libasynch.a $(HDF5_LIBS) $(POSTGRESQL_LIBS)
 asynch_LDFLAGS = $(HDF5_LDFLAGS) $(POSTGRESQL_LDFLAGS)
 
-include_HEADERS = asynch_interface.h
+include_HEADERS = structs.h structs_fwd.h asynch_interface.h
 
-AM_CFLAGS = $(HDF5_CFLAGS) $(POSTGRESQL_CPPFLAGS)
+AM_CFLAGS = $(HDF5_CPPFLAGS) $(POSTGRESQL_CPPFLAGS)

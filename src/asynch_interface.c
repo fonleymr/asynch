@@ -410,8 +410,6 @@ void Asynch_Finalize_Network(AsynchSolver* asynch)
     MPI_Barrier(asynch->comm);
 }
 
-// End network setup ******************************************************************************************************
-
 
 //Trash an asynchsolver object
 void Asynch_Free(AsynchSolver* asynch)
@@ -423,8 +421,9 @@ void Asynch_Free(AsynchSolver* asynch)
         ConnData_Free(&asynch->db_connections[i]);
     Destroy_Workspace(&asynch->workspace, asynch->globals->max_rk_stages, asynch->globals->max_parents);
     free(asynch->getting);
-    if (asynch->outputfile)	fclose(asynch->outputfile);
-    if (asynch->peakfile)	fclose(asynch->peakfile);
+    
+    if (asynch->outputfile)
+        fclose(asynch->outputfile);
     
     for (i = 0; i < asynch->N; i++)
         Destroy_Link(&asynch->sys[i], asynch->globals->iter_limit, asynch->rkdfilename[0] != '\0', asynch->forcings, asynch->globals);
@@ -965,6 +964,7 @@ int Asynch_Set_Output_Float(AsynchSolver* asynch, char* name, OutputFloatCallbac
 
     return 1;
 }
+
 
 //Returns 1 if output function set successfully, 0 if there was a problem
 int Asynch_Set_Peakflow_Output(AsynchSolver* asynch, char* name, PeakflowOutputCallback* callback)

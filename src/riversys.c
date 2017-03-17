@@ -1505,12 +1505,19 @@ static int Load_Initial_Conditions_H5(
             return 1;
         }
 
-        hsize_t dims[2];
-        H5LTget_dataset_info(file_id, "/state", dims, NULL, NULL);
-
-        if (dims[0] != N)
+        hid_t packet_file_id = H5PTopen(file_id, "/snapshot");
+        if (packet_file_id < 0)
         {
-            printf("Error: the number of links in %s differs from the number in the topology data. (Got %llu, expected %u)\n", globals->init_filename, dims[1], N);
+            printf("Error: could not initialize h5 packet file %s.\n", globals->init_filename);
+            return 2;
+        }
+
+        hsize_t num_packets;
+        H5PTget_num_packets(packet_file_id, &num_packets);
+
+        if (num_packets != N)
+        {
+            printf("Error: the number of links in %s differs from the number in the topology data. (Got %llu, expected %u)\n", globals->init_filename, num_packets, N);
             return 1;
         }
 
@@ -1528,19 +1535,18 @@ static int Load_Initial_Conditions_H5(
         }
 
         //Broadcast the initial time
-        MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        //MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-        int *index = malloc(dims[0] * sizeof(unsigned int));
-        double *data = malloc(dims[0] * dims[1] * sizeof(double));
-
-        H5LTread_dataset_int(file_id, "/index", index);
-        H5LTread_dataset_double(file_id, "/state", data);
+        size_t line_size = sizeof(unsigned int) + dim * sizeof(double);
+        char *buffer = malloc(line_size);
 
         //Read the .h5 file
         for (unsigned int i = 0; i < N; i++)
         {
+            H5PTget_next(packet_file_id, 1, buffer);
+
             //Send current location
-            unsigned int id = index[i];
+            unsigned int id = *((unsigned int *)buffer);
             unsigned int loc = find_link_by_idtoloc(id, id_to_loc, N);
             if (loc > N)
             {
@@ -1561,7 +1567,7 @@ static int Load_Initial_Conditions_H5(
                 MPI_Recv(&dim, 1, MPI_UNSIGNED, assignments[loc], 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             //Read init data
-            double *y_0 = &data[i * dim];
+            double *y_0 = buffer + sizeof(unsigned int);
 
             //Send data to assigned proc and getting proc
             if (assignments[loc] == my_rank || getting[loc])
@@ -1577,7 +1583,7 @@ static int Load_Initial_Conditions_H5(
                 MPI_Send(y_0, dim, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
             if (!(getting[loc]))
             {
-                int j;
+                unsigned int j;
                 for (j = 0; j < np; j++)
                     if (who_needs[j] == 2)
                         break;
@@ -1588,12 +1594,14 @@ static int Load_Initial_Conditions_H5(
         }
 
         //Clean up
+        free(buffer);
+        H5PTclose(packet_file_id);
         H5Fclose(file_id);
     }
     else
     {
-        //Get the initial time
-        MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        ////Get the initial time
+        //MPI_Bcast(&(globals->t_0), 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
         double *y_0 = NULL;
 
@@ -3031,6 +3039,10 @@ int FinalizeSystem(
 // *********************************************************************************************
 
 
+#if defined(_MSC_VER)
+#   define timegm _mkgmtime
+#endif
+
 
 //Reads in the data from a .gbl file. All data will be global data for the entire river system.
 //char globalfilename[]: String with the filename of the .gbl file.
@@ -3073,10 +3085,56 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData* errors, Forcing* 
 
     globals->rain_filename = NULL;
 
-    //Grab the type and maxtime
+    //Grab the model uid
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
-    valsread = sscanf(line_buffer, "%hu %lf", &(globals->type), &(globals->maxtime));
-    if (ReadLineError(valsread, 2, "type and maxtime"))	return NULL;
+    valsread = sscanf(line_buffer, "%hu", &(globals->type));
+    if (ReadLineError(valsread, 1, "model type"))	return NULL;
+
+    //Grab the begin and end time
+    struct tm begin_tm;
+    memset(&begin_tm, 0, sizeof(struct tm));
+    
+    ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%d-%d-%d %d:%d", &begin_tm.tm_year, &begin_tm.tm_mon, &begin_tm.tm_mday, &begin_tm.tm_hour, &begin_tm.tm_min);
+    if (valsread == 5) 
+    {
+        begin_tm.tm_year = begin_tm.tm_year - 1900;
+        begin_tm.tm_mon = begin_tm.tm_mon - 1;
+        globals->begin_time = timegm(&begin_tm);
+    }
+    else
+    {
+        int begin_time;
+        valsread = sscanf(line_buffer, "%d", &begin_time);
+        if (ReadLineError(valsread, 1, "begin YYYY-MM-DD HH:MM || unix_time"))	return NULL;
+        globals->begin_time = begin_time;
+    }
+        
+    struct tm end_tm;
+    memset(&end_tm, 0, sizeof(struct tm));
+
+    ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
+    valsread = sscanf(line_buffer, "%d-%d-%d %d:%d", &end_tm.tm_year, &end_tm.tm_mon, &end_tm.tm_mday, &end_tm.tm_hour, &end_tm.tm_min);
+    if (valsread == 5)
+    {
+        end_tm.tm_year = end_tm.tm_year - 1900;
+        end_tm.tm_mon = end_tm.tm_mon - 1;
+        globals->end_time = timegm(&end_tm);
+    }
+    else
+    {
+        int end_time;
+        valsread = sscanf(line_buffer, "%d", &end_time);
+        if (ReadLineError(valsread, 1, "end YYYY-MM-DD HH:MM || unix_time"))	return NULL;
+        globals->end_time = end_time;
+    }
+
+    globals->maxtime = (double)(globals->end_time - globals->begin_time) / 60.0;
+    if (globals->maxtime <= 0.0)
+    {
+        printf("Error: Simulation period invalid (begin >= end)\n");
+        return NULL;
+    }
 
     //Grab the output filename info
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
@@ -3495,6 +3553,11 @@ GlobalVars* Read_Global_Data(char globalfilename[], ErrorData* errors, Forcing* 
         if (ReadLineError(valsread, 2, "snapshot time and filename"))	return NULL;
         if (!CheckFilenameExtension(globals->dump_loc_filename, ".h5"))
             return NULL;
+
+        //Strip the extension
+        char *ext = strrchr(globals->dump_loc_filename, '.');
+        unsigned int filename_len = (unsigned int)(ext - globals->dump_loc_filename);
+        globals->dump_loc_filename[filename_len] = '\0';
     }
 
     //Grab folder locations
@@ -3999,7 +4062,6 @@ int CheckWinFormat(FILE* file)
 //Returns 2 if filename is just a path (the path variable is still set).
 int FindPath(char* filename, char* path)
 {
-    size_t i;
     size_t len = strlen(filename);
     char holder;
 
@@ -4015,7 +4077,7 @@ int FindPath(char* filename, char* path)
         return 2;
     }
 
-    for (i = len - 2; i >= 0; i--)
+    for (int i = (int)(len - 2); i >= 0; i--)
     {
         if (filename[i] == '/')
         {
@@ -4036,7 +4098,7 @@ int FindPath(char* filename, char* path)
 //Returns 1 if fullpath is just a path (the filename variable is set to empty).
 int FindFilename(char* fullpath, char* filename)
 {
-    size_t i;
+    int i;
     size_t len = strlen(fullpath);
 
     if (len == 0 || fullpath[len - 1] == '/')
@@ -4045,7 +4107,7 @@ int FindFilename(char* fullpath, char* filename)
         return 1;
     }
 
-    for (i = len - 2; i >= 0; i--)
+    for (i = (int)(len - 2); i >= 0; i--)
     {
         if (fullpath[i] == '/')
             break;

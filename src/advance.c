@@ -32,8 +32,6 @@ void Advance(
     bool print_flag,
     FILE* outputfile)
 {
-    unsigned int i;
-
     //Initialize remaining data
     short int* done = (short int*)malloc(my_N * sizeof(short int));
     short int parentsval;
@@ -43,39 +41,41 @@ void Advance(
     int error_code;
 
     //Initialize values for forcing data
-    unsigned int passes = 1;
     for (unsigned int i = 0; i < globals->num_forcings; i++)
     {
         if (forcings[i].active)
         {
             forcings[i].passes = forcings[i].GetPasses(&forcings[i], globals->maxtime, &db_connections[ASYNCH_DB_LOC_FORCING_START + i]);
-            passes = max(passes, forcings[i].passes);
+            //passes = max(passes, forcings[i].passes);
             //printf("Before: %u, %u, %u\n",i,forcings[i].passes,passes);
         }
     }
 
-    //Snapshot passes
-    if (globals->dump_loc_flag == 4)
-        passes = max(passes, (unsigned int)ceil(globals->maxtime / globals->dump_time));
+    ////Snapshot passes
+    //if (globals->dump_loc_flag == 4)
+    //    passes = max(passes, (unsigned int)ceil(globals->maxtime / globals->dump_time));
 
     //Start the main loop
-    for (unsigned int k = 0; k < passes; k++)
+    while (globals->t < globals->maxtime)
     {
         around = 0;
         current = my_sys[my_N - 1];
         curr_idx = 0;
         last_idx = my_N - 1;
+
+        //Advance the current time
+        globals->t = my_sys[0]->last_t;
         
         memset(done, 0, my_N * sizeof(short int));
 
         //Read in next set of forcing data
         double maxtime = globals->maxtime;
-        for (i = 0; i < globals->num_forcings; i++)
+        for (unsigned int i = 0; i < globals->num_forcings; i++)
         {
             if (forcings[i].active)
             {
                 //printf("Forcing %u is active  %e %e\n",i,sys[my_sys[0]]->last_t,forcings[i].maxtime);
-                if (fabs(my_sys[0]->last_t - forcings[i].maxtime) < 1e-14)
+                if (fabs(globals->t - forcings[i].maxtime) < 1e-14)
                 {
                     forcings[i].maxtime = forcings[i].GetNextForcing(sys, N, my_sys, my_N, assignments, globals, &forcings[i], db_connections, id_to_loc, i);
                     //(forcings[i].iteration)++;	if flag is 3 (dbc), this happens in GetNextForcing
@@ -88,17 +88,14 @@ void Advance(
         //Check shapshot next time
         if (globals->dump_loc_flag == 4)
         {
-            double last_time = my_sys[0]->last_t;
-            double next_time = fmod(last_time, globals->dump_time);
+            double next_time = fmod(globals->t, globals->dump_time);
             if (next_time < 1e-14)
             {
-                char suffix[ASYNCH_MAX_TIMESTAMP_LENGTH];
-                snprintf(suffix, ASYNCH_MAX_TIMESTAMP_LENGTH, "%d", (int)round(last_time));
-                globals->output_func.CreateSnapShot(sys, N, assignments, globals, suffix, NULL);
-                next_time = last_time + globals->dump_time;
+                globals->output_func.CreateSnapShot(sys, N, assignments, globals, NULL, NULL);
+                next_time = globals->t + globals->dump_time;
             }
             else
-                next_time = ceil(next_time) * globals->dump_time;
+                next_time = ceil(globals->t / globals->dump_time) * globals->dump_time;
 
             maxtime = min(maxtime, next_time);
         }
@@ -128,7 +125,6 @@ void Advance(
         // Update forcing
         Exchange_InitState_At_Forced(sys, N, assignments, getting, res_list, res_size, id_to_loc, globals, the_model);
         
-        //Set a new step size
         for (unsigned int i = 0; i < my_N; i++)
         {
             my_sys[i]->h = InitialStepSize(my_sys[i]->last_t, my_sys[i], globals, workspace);
@@ -137,10 +133,8 @@ void Advance(
 
         //This might be needed. Sometimes some procs get stuck in Finish for communication, but makes runs much slower.
         MPI_Barrier(MPI_COMM_WORLD);
-
         unsigned int num_iterations = 0;
-
-        if (my_sys[0]->last_t < globals->maxtime)
+        if (globals->t < globals->maxtime)
         {
             unsigned int alldone = 0;
             while (alldone < my_N)
@@ -172,7 +166,7 @@ void Advance(
                         {
                             while (current->last_t + current->h < maxtime && current->current_iterations < globals->iter_limit)
                             {
-                                for (i = 0; i < globals->num_forcings; i++)		//!!!! Put this in solver !!!!
+                                for (unsigned int i = 0; i < globals->num_forcings; i++)		//!!!! Put this in solver !!!!
                                     if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
                                         current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
@@ -180,7 +174,7 @@ void Advance(
 
                             if (current->last_t + current->h >= maxtime  && current->current_iterations < globals->iter_limit && current->last_t < maxtime)	//If less than a full step is needed, just finish up
                             {
-                                for (i = 0; i < globals->num_forcings; i++)
+                                for (unsigned int i = 0; i < globals->num_forcings; i++)
                                     if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
                                         current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 current->h = min(current->h, maxtime - current->last_t);
@@ -189,8 +183,9 @@ void Advance(
 
                                 while (current->rejected == 0)
                                 {
-                                    for (i = 0; i < globals->num_forcings; i++)
-                                        if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
+                                    for (unsigned int i = 0; i < globals->num_forcings; i++)
+                                        if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                            current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                     current->h = min(current->h, maxtime - current->last_t);
                                     assert(current->h > 0);
                                     current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
@@ -200,13 +195,14 @@ void Advance(
                         else	//Has parents
                         {
                             parentsval = 0;
-                            for (i = 0; i < current->num_parents; i++)
+                            for (unsigned int i = 0; i < current->num_parents; i++)
                                 parentsval += (current->last_t + current->h <= current->parents[i]->last_t);
 
                             while (parentsval == current->num_parents && current->current_iterations < globals->iter_limit)
                             {
-                                for (i = 0; i < globals->num_forcings; i++)
-                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
+                                for (unsigned int i = 0; i < globals->num_forcings; i++)
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                        current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
 
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
@@ -220,7 +216,7 @@ void Advance(
                                 current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
 
                                 parentsval = 0;
-                                for (i = 0; i < current->num_parents; i++)
+                                for (unsigned int i = 0; i < current->num_parents; i++)
                                     parentsval += (current->last_t + current->h <= current->parents[i]->last_t);
                             }
 
@@ -233,7 +229,8 @@ void Advance(
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
                                 for (unsigned int i = 0; i < globals->num_forcings; i++)
-                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])	current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
+                                    if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
+                                        current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 if (current->discont_count > 0 && current->h > current->discont[current->discont_start] - current->last_t)
                                 {
 #if defined (ASYNCH_HAVE_IMPLICIT_SOLVER)
@@ -339,12 +336,7 @@ void Advance(
 
                     }
                 }
-            }
-        }
-        else
-        {
-            //			if(my_rank == 0)	printf("%i: Should be done, k is %i/%i\n",my_rank,k,passes-1);
-            break;
+            }//endwhile
         }
 
         printf("Num iterations: %i\n", num_iterations);

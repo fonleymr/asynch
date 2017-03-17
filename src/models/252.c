@@ -134,7 +134,6 @@ void TopLayerHillslopeSIMD(
 
     //Discharge
     double discharge = -q + (q_pl + q_sl) * c_2;
-#pragma novector
     for (unsigned int i = 0; i < num_parents; i++)
         discharge += y_p[i * num_dof];
 

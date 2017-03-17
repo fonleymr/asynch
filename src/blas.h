@@ -3,6 +3,7 @@
 
 #if _MSC_VER > 1000
 #pragma once
+#define restrict __restrict
 #endif // _MSC_VER > 1000
 
 ////BLAS
@@ -13,6 +14,8 @@
 //void mm_mlt(VEC2 A,VEC2 B,VEC2 C);
 //void mTm_mlt(VEC2 A,VEC2 B,VEC2 C);
 //void mmT_mlt(VEC2 A,VEC2 B,VEC2 C);
+
+
 
 
 // Copies a vector, x, to a vector, y

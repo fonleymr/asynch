@@ -12,82 +12,98 @@
 #include <mpi.h>
 #endif 
 
-//#include "comm.h"
-//#include "riversys.h"
-//#include "processdata.h"
-//#include "structs.h"
-//#include "solvers.h"
-//#include "io.h"
+#include "structs_fwd.h"
 #include "data_types.h"
 
 #include <models/model.h>
-
-
-//#define ASYNCH_MAX_DB_CONNECTIONS 20
-
-// Forward definitions
-typedef struct ErrorData ErrorData;
-typedef struct GlobalVars GlobalVars;
-typedef struct Link Link;
-typedef struct RKMethod RKMethod;
-typedef struct TransData TransData;
-typedef struct Workspace Workspace;
-typedef struct ConnData ConnData;
-typedef struct QVSData QVSData;
-typedef struct Forcing Forcing;
-typedef struct AsynchSolver AsynchSolver;
-
-typedef struct VEC VEC;
-typedef struct MAT MAT;
-
 
 //Callback signatures
 
 /// 
 ///
+/// \param id The link id.
 /// \param t The current time.
 /// \param y The current state vector at time *t* for the link.
-/// \param global_params The vector of parameters uniform amongst all links.
-/// \param params The vector of parameters for the link.
-/// \param state : The current state of the state vector.
-/// \param user: User defined data.
+/// \param num_dof: Number of degree of freedom.
 /// \return Returns the data to be written as output.
 typedef int (OutputIntCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 /// 
 ///
+/// \param id The link id.
 /// \param t The current time.
 /// \param y The current state vector at time *t* for the link.
-/// \param global_params The vector of parameters uniform amongst all links.
-/// \param params The vector of parameters for the link.
-/// \param state : The current state of the state vector.
-/// \param user: User defined data.
+/// \param num_dof: Number of degree of freedom.
 /// \return Returns the data to be written as output.
 typedef double (OutputDoubleCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 /// 
 ///
+/// \param id The link id.
 /// \param t The current time.
 /// \param y The current state vector at time *t* for the link.
-/// \param global_params The vector of parameters uniform amongst all links.
-/// \param params The vector of parameters for the link.
-/// \param state : The current state of the state vector.
-/// \param user: User defined data.
+/// \param num_dof: Number of degree of freedom.
 /// \return Returns the data to be written as output.
 typedef float (OutputFloatCallback)(unsigned int id, double t, double *y, unsigned int num_dof);
 
 
+/// Output formating callback 
 typedef union OutputCallback {
-    OutputIntCallback *out_int;
-    OutputDoubleCallback *out_double;
-    OutputFloatCallback *out_float;
+    OutputIntCallback *out_int;         //!< The callback for an integer
+    OutputDoubleCallback *out_double;   //!< The callback for a double
+    OutputFloatCallback *out_float;     //!< The callback for a float
 } OutputCallback;
 
 
 typedef void (PeakflowOutputCallback)(unsigned int ID, double peak_time, double *peak_value, double *params, double *global_params, double conversion, unsigned int area_idx, void* user, char* buffer);
 
 ////Function signatures
-//typedef void (DifferentialFunc)(double, VEC, VEC2, VEC, VEC, QVSData*, VEC, int, void*, VEC);           //!< Right-hand side function for ODE                                            
+
+/// These are the right-hand side functions for the differential equations.
+///
+/// \param t The current time (typically measured in minutes).
+/// \param y_i The vector of the current states of the system at this link. Only states defined by a differential equation are available. This means the indices from diff_start and beyond are available. States defined by algebraic equations must be calculated, if needed for the differential equations.
+/// \param y_p The array of vectors of the states of the system of each upstream (parent) link. Only states defined by a differential equation are available. States defined by algebraic equations must be calculated. Further, only those states listed in dense_indices (defined in SetParamSizes) are available.
+/// \param num_parents The number of upstream links (parents) to link i
+/// \param global_params The vector of parameters constant in both space and time.
+/// \param forcings The array of current forcing values.
+/// \param qvs The table of discharge vs storage relationships. This is only available if a dam is present at this link, and the dam_flag is set to 2.
+/// \param params The vector of parameters for link i.
+/// \param state The current discontinuity state of the states.
+/// \param user A pointer to user specified data.
+/// \param ans The vector of function evaluations. Each entry of ans from diff_start (and including diff_start) should be set by this routine.
+
+
+/// These are the right-hand side functions for the algebraic equations.
+///
+/// \param y The vector of current states.Only the states with index greater than or equal to *diff\_start* are available for use.
+/// \param global_params The vector of parameters constant in both space and time.
+/// \param params The vector of parameters for this link.
+/// \param qvs The table of discharge vs storage relationships.This is only available if a dam is present at this link, and the *dam\_flag* is set to 2.
+/// \param state The current discontinuity state of the states.
+/// \param user A pointer to user specified data.
+/// \param ans The vector of function evaluations.Each entry of *ans* from 0 to *diff\_start* (exclusive)should be set by this routine.
+
+
+
+/// This routine determines in which discontinuity state the system currently is.
+///
+/// \param y The vector of current states.Only the states with index greater than or equal to *diff\_start* are available for use.
+/// \param global_params The vector of parameters constant in both space and time.
+/// \param params The vector of parameters for this link.
+/// \param qvs The table of discharge vs storage relationships.This is only available if a dam is present at this link, and only if *dam\_flag* is 2.
+/// \param dam The dam flag for this link.If 1, a dam is present at this link.If 0, no dam is present.
+
+
+
+/// This routine is called by the integrator to guarantee these constraints are satisfied.
+///
+/// \param y The vector of current states.Only the states with index greater than or equal to *diff\_start* are available for use.
+/// \param params The vector of parameters for this link.
+/// \param global_params The vector of parameters constant in both space and time.
+
+
+
 //typedef void (AlgebraicFunc)(VEC, VEC, VEC, QVSData*, int, void*, VEC);                                 //!< Right-hand side function for algebraic variables
 //typedef void (JacobianFunc)(double, VEC, VEC2, VEC, VEC, VEC, VEC2);                                    //!< jacobian of right-hand side function
 //typedef int (RKSolverFunc)(Link*, GlobalVars*, int*, bool, FILE*, ConnData*, Forcing*, Workspace*);     //!< RK solver to use

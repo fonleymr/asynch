@@ -1,9 +1,34 @@
 noinst_LIBRARIES = libasynch.a
-libasynch_a_SOURCES = rkmethods.c problems.c blas.c vector.c riversys.c sort.c comm.c system.c processdata.c partition.c builtin.c misc.c rainfall.c solvers.c io.c forcings.c compression.c asynch_interface.c modeloutputs.c data_types.c consistency.c \
+libasynch_a_SOURCES = \
+  advance.c \
+  asynch_interface.c \
+  blas.c \
+  comm.c \
+  compression.c \
+  data_types.c \
+  db.c \
+  forcings.c forcings_io.c \
+  io.c \
+  misc.c \
+  modeloutputs.c \
+  partition.c \
+  processdata.c \
+  riversys.c \
   rksteppers.c \
+  sort.c \
+  system.c \
+  models/252.c \
+  models/check_consistency.c \
+  models/check_state.c \
+  solvers/dopri5_dense.c \
+  solvers/lagrange.c \
+  solvers/radau.c \
+  solvers/rk3_2_dense.c \
+  solvers/rk4_3_dense.c \
   steppers/explicit.c
-#  steppers/explicit_discont.c \
-#  steppers/explicit_index1.c \
+
+#  steppers/explicit_discont.c
+#  steppers/explicit_index1.c
 #  steppers/explicit_index1_dam.c
 
 bin_PROGRAMS = asynch

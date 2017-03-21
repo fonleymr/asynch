@@ -30,7 +30,7 @@
 //UnivVars* GlobalVars:	Contains the global variables for the system.
 void SetParamSizes(GlobalVars* globals, void* external)
 {
-    unsigned short int type = globals->type;
+    unsigned short int type = globals->model_uid;
     unsigned int num_global_params;
 
     //Set dim and start of differential variables

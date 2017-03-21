@@ -5,7 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs.h"
+#include "structs_fwd.h"
 
 
 extern int np;
@@ -95,8 +95,6 @@ int FinalizeSystem(
     Link *system, unsigned int N,
     Link **my_sys, unsigned int my_N,
     unsigned int* assignments, short int* getting, const Lookup * const id_to_loc, TransData* my_data, GlobalVars* globals, ConnData* db_connections, Workspace* workspace);
-
-GlobalVars* Read_Global_Data(char globalfilename[], ErrorData* errors, Forcing* forcings, ConnData* db_connections, char* rkdfilename, AsynchModel* model, void* external);
 
 void ReadDBC(char* filename, ConnData* const conninfo);
 

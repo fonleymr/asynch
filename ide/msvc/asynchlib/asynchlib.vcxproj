@@ -87,7 +87,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="$(RootDir)\src\asynch_interface.h" />
-    <ClInclude Include="$(RootDir)\src\asynch_interface_py.h" />
     <ClInclude Include="$(RootDir)\src\comm.h" />
     <ClInclude Include="$(RootDir)\src\compression.h" />
     <ClInclude Include="$(RootDir)\src\data_types.h" />
@@ -107,7 +106,9 @@
     <ClInclude Include="$(RootDir)\src\sort.h" />
     <ClInclude Include="$(RootDir)\src\structs.h" />
     <ClInclude Include="$(RootDir)\src\system.h" />
+    <ClInclude Include="..\..\..\src\config.h" />
     <ClInclude Include="..\..\..\src\consistency.h" />
+    <ClInclude Include="..\..\..\src\globals.h" />
     <ClInclude Include="..\..\..\src\libpq_fwd.h" />
     <ClInclude Include="..\..\..\src\models\check_consistency.h" />
     <ClInclude Include="..\..\..\src\models\check_state.h" />
@@ -119,10 +120,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(RootDir)\src\asynch_interface.c" />
-    <ClCompile Include="$(RootDir)\src\asynch_interface_py.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="$(RootDir)\src\comm.c" />
     <ClCompile Include="$(RootDir)\src\compression.c" />
     <ClCompile Include="$(RootDir)\src\data_types.c" />
@@ -145,11 +142,14 @@
     <ClCompile Include="$(RootDir)\src\riversys.c" />
     <ClCompile Include="$(RootDir)\src\sort.c" />
     <ClCompile Include="$(RootDir)\src\system.c" />
+    <ClCompile Include="..\..\..\src\config.c" />
     <ClCompile Include="..\..\..\src\db.c" />
     <ClCompile Include="..\..\..\src\forcings_io.c" />
+    <ClCompile Include="..\..\..\src\models\190.c" />
     <ClCompile Include="..\..\..\src\models\252.c" />
     <ClCompile Include="..\..\..\src\models\check_consistency.c" />
     <ClCompile Include="..\..\..\src\models\check_state.c" />
+    <ClCompile Include="..\..\..\src\models\model.c" />
     <ClCompile Include="..\..\..\src\rksteppers.c" />
     <ClCompile Include="..\..\..\src\solvers\dopri5_dense.c" />
     <ClCompile Include="..\..\..\src\solvers\lagrange.c" />

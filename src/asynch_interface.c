@@ -25,6 +25,7 @@
 #endif
 
 #include "structs.h"
+#include "config.h"
 #include "db.h"
 #include "comm.h"
 #include "riversys.h"
@@ -36,10 +37,6 @@
 #include "blas.h"
 
 #include "asynch_interface.h"
-
-
-extern AsynchModel *the_model;
-
 
 //Initializes the asynch solver object.
 AsynchSolver* Asynch_Init(MPI_Comm comm)
@@ -53,8 +50,6 @@ AsynchSolver* Asynch_Init(MPI_Comm comm)
     if (res)
     {
         memset(res, 0, sizeof(AsynchSolver));
-
-        res->model = the_model;
 
         res->comm = comm;
         if (comm != MPI_COMM_WORLD)	printf("Warning: asynchsolver object my not work fully with in a comm other than MPI_COMM_WORLD.\n");
@@ -473,12 +468,12 @@ int Asynch_Take_System_Snapshot(AsynchSolver* asynch, char* preface)
 
 unsigned short Asynch_Get_Model_Type(AsynchSolver* asynch)
 {
-    return asynch->globals->type;
+    return asynch->globals->model_uid;
 }
 
 void Asynch_Set_Model_Type(AsynchSolver* asynch, unsigned short type)
 {
-    asynch->globals->type = type;
+    asynch->globals->model_uid = type;
 }
 
 unsigned short Asynch_Get_Num_Links(AsynchSolver* asynch)

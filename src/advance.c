@@ -15,9 +15,6 @@
 #include <structs.h>
 
 
-extern AsynchModel *the_model;
-
-
 int num_call_function = 0;
 
 void Advance(
@@ -32,6 +29,8 @@ void Advance(
     bool print_flag,
     FILE* outputfile)
 {
+    AsynchModel *the_model = globals->model;
+
     //Initialize remaining data
     short int* done = (short int*)malloc(my_N * sizeof(short int));
     short int parentsval;

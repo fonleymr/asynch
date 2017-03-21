@@ -1,5 +1,5 @@
-#ifndef SOLVERS_H
-#define SOLVERS_H
+#if !defined(ASYNCH_ADVANCE_H)
+#define ASYNCH_ADVANCE_H
 
 #if _MSC_VER > 1000
 #pragma once
@@ -9,11 +9,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include "structs.h"
-
-
-extern int np;
-extern int my_rank;
+#include <globals.h>
+#include <structs.h>
 
 void Advance(
     Link *sys, unsigned int N,
@@ -27,4 +24,4 @@ void Advance(
     bool print_flag,
     FILE* outputfile);
 
-#endif
+#endif //ASYNCH_ADVANCE_H

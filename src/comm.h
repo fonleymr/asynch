@@ -9,13 +9,12 @@
 #include <mpi.h>
 #endif
 
-#include "structs.h"
-#include "system.h"
-#include "sort.h"
-#include "libpq_fwd.h"
+#include <structs.h>
+#include <globals.h>
 
-extern int my_rank;
-extern int np;
+#include <system.h>
+#include <sort.h>
+#include <libpq_fwd.h>
 
 #define ASYNCH_MAX_NUMBER_OF_PROCESS 256
 

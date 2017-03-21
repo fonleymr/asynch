@@ -30,9 +30,6 @@
     <ClCompile Include="$(RootDir)\src\asynch_interface.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="$(RootDir)\src\asynch_interface_py.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="$(RootDir)\src\comm.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -135,12 +132,18 @@
     <ClCompile Include="..\..\..\src\rksteppers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\models\190.c">
+      <Filter>Source Files\models</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\models\model.c">
+      <Filter>Source Files\models</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(RootDir)\src\asynch_interface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="$(RootDir)\src\asynch_interface_py.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="$(RootDir)\src\comm.h">
@@ -225,6 +228,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\libpq_fwd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\globals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -14,20 +14,8 @@
 #include "rkmethods.h"
 #include "blas.h"
 
-//extern int my_rank;
-//extern int np;
-
-extern AsynchModel *the_model;
-
-//static double sq(double val)
-//{
-//    return val * val;
-//}
-
 
 //Copies contents of the vectors full_k with dim entries into the vectors k with num_dense entries.
-//void store_k(VEC2 full_k, VEC2 k, unsigned int s, unsigned int* dense_indices, unsigned int num_dense)
-
 void store_k(const double * const full_k, unsigned int num_dof, double *k, unsigned int num_stages, const unsigned int * const dense_indices, unsigned int num_dense)
 {
     unsigned int i, j;
@@ -36,7 +24,6 @@ void store_k(const double * const full_k, unsigned int num_dof, double *k, unsig
     for (i = 0; i < num_stages; i++)
     {
         for (j = 0; j < num_dense; j++)
-            //v2_set(k, i, j, v2_at(full_k, i, dense_indices[j]));
             k[i * num_dense + j] = full_k[i * num_dof + dense_indices[j]];
     }
 }
@@ -44,6 +31,8 @@ void store_k(const double * const full_k, unsigned int num_dof, double *k, unsig
 
 double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals, Workspace* workspace)
 {
+    AsynchModel *the_model = globals->model;
+
     unsigned int start = link_i->diff_start;
     double *y_0 = link_i->my->list.tail->y_approx;
     double t_0 = link_i->my->list.tail->t;
@@ -63,7 +52,6 @@ double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals,
 
     //Build SC for this link
     for (unsigned int i = 0; i < dim; i++)
-        //v_set(SC, i, fabs(v_at(y_0, i)) * error->reltol[i] + error->abstol[i]);
         SC[i] = fabs(y_0[i]) * error->reltol[i] + error->abstol[i];
 
     //Grab parents data

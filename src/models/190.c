@@ -12,46 +12,11 @@
 #include <models/check_consistency.h>
 
 
-//static double global_params[11];
+static unsigned int dense_indices[] = { 0 };
 
-extern const AsynchModel model_252;
+static double global_params[11];
 
-
-struct global_params {
-    double v_0;
-    double lambda_1;
-    double lambda_2;
-    double v_h;
-    double k_3;
-    double k_I_factor;
-    double h_b;
-    double S_L;
-    double A;
-    double B;
-    double exponent;
-} global_params;
-
-
-struct local_params {
-    double A_i;
-    double L_i;
-    double A_h;
-    double invtau;
-    double k_2;
-    double k_i;
-    double c_1;
-    double c_2;
-} local_params;
-
-
-struct precalc
-{
-    double invtau;
-    double k_2;
-    double k_i;
-    double c_1;
-    double c_2;
-} precalc;
+extern const AsynchModel model_190;
 
 
 // AKA ConvertParams
@@ -64,35 +29,13 @@ static void convert(double *params, unsigned int type, void* external)
 // AKA InitRoutines
 static void routines(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* user)
 {
-    link->dim = model_252.dim;
+    link->dim = model_190.dim;
 }
 
 //AKA Precalculations
-static void precalculations(Link* link_i, void *_global_params, void *_local_params, unsigned int disk_params, unsigned int params_size, unsigned short int dam, unsigned int type, void* user)
+static void precalculations(Link* link_i, double *global_params, double *params, unsigned int disk_params, unsigned int params_size, unsigned short int dam, unsigned int type, void* user)
 {
-    struct global_params *gp = (struct global_params *)_global_params;
-    struct local_params *lp = (struct local_params *)_local_params;
 
-    //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
-    //The numbering is:	0   1   2    3     4   5   6   7 
-    //Order of global_params: v_0,lambda_1,lambda_2,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent
-    //The numbering is:        0      1        2     3   4     5        6   7  8 9  10
-    //double* vals = params;
-    //double A_i = params[0];
-    //double L_i = params[1];
-    //double A_h = params[2];
-
-    //double v_0 = global_params[0];
-    //double lambda_1 = global_params[1];
-    //double lambda_2 = global_params[2];
-    //double v_h = global_params[3];
-    //double k_i_factor = global_params[5];
-
-    vals[3] = 60.0 * gp->v_0 * pow(lp->A_i, gp->lambda_2) / ((1.0 - gp->lambda_1) * lp->L_i);	//[1/min]  invtau
-    vals[4] = gp->v_h * lp->L_i / lp->A_h * 60.0;	//[1/min] k_2
-    vals[5] = vals[4] * gp->k_I_factor;	//[1/min] k_i
-    vals[6] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
-    vals[7] = lp->A_h / 60.0;	//  c_2
 }
 
 //AKA ReadInitData
@@ -108,7 +51,7 @@ static void partition(Link* sys, unsigned int N, Link** leaves, unsigned int num
 }
 
 
-void toplayer_hillslope(
+void constant_runoff_hillslope(
     double t,
     const double * const y_i, unsigned int num_dof,
     const double * const y_p, unsigned int num_parents,
@@ -180,9 +123,9 @@ void toplayer_hillslope(
 }
 
 
-const AsynchModel model_252 = {
+const AsynchModel model_190 = {
 
-    252,            // uid
+    190,            // uid
 
     4,              // dim
     0,              // diff_start
@@ -192,7 +135,7 @@ const AsynchModel model_252 = {
     0,              // dense_indices
 
     11,             // num_global_params
-    &global_params,  // global_params
+    global_params,  // global_params
 
 
     false,          // use_dam
@@ -208,10 +151,10 @@ const AsynchModel model_252 = {
 
     2,              // num_forcings
 
-    &toplayer_hillslope,    // differential
-    NULL,                   // jacobian
-    NULL,                   // algebraic
-    NULL,                   // check_state
+    &constant_runoff_hillslope,     // differential
+    NULL,                           // jacobian
+    NULL,                           // algebraic
+    NULL,                           // check_state
     &CheckConsistency_Nonzero_4States,  // check_consistency
     &ExplicitRKSolver,                  // solver
     

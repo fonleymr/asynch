@@ -5,10 +5,8 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs.h"
-
-extern int np;
-extern int my_rank;
+#include <structs.h>
+#include <globals.h>
 
 void Forcing_Init(Forcing* forcing);
 void Forcing_Free(Forcing* forcing);

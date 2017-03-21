@@ -14,11 +14,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-
 #include <structs_fwd.h>
 
 
-// Right-hand side function for ODE  
+/// Get a model given its uid
+/// 
+/// \param_uid Model uid
+/// \return A pointer to the model
+AsynchModel const * GetModel(unsigned short model_uid);
+
+
+// Right-hand side function for ODE
 typedef void (DifferentialFunc) (
     double t,
     const double * const y_i, unsigned int num_dof,
@@ -103,7 +109,7 @@ typedef struct AsynchModel
     unsigned int areah_idx;             //!< Index of hillslope area (A_h) in params
     bool convertarea_flag;              //!< true if hillslope and upstream areas are converted from km^2 to m^2, false if not
     
-    unsigned int min_error_tolerances;      //!< The minimum number of error tolerances needed at every link. Used for uniform error tolerances.
+    unsigned int min_error_tolerances;  //!< The minimum number of error tolerances needed at every link. Used for uniform error tolerances.
     
     unsigned int num_forcings;          //!< The number of forcings
 

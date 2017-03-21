@@ -666,7 +666,7 @@ int DumpTimeSerieH5File(Link* sys, GlobalVars* globals, unsigned int N, unsigned
         }
 
         //Set attributes
-        unsigned short type = globals->type;
+        unsigned short type = globals->model_uid;
         unsigned int issue_time = (unsigned int) globals->begin_time;
         H5LTset_attribute_string(file_id, "/", "version", PACKAGE_VERSION);
         H5LTset_attribute_ushort(file_id, "/", "model", &type, 1);
@@ -1261,7 +1261,7 @@ int DumpPeakFlowText(Link* sys, GlobalVars* globals, unsigned int N, int* assign
                 printf("Error: Cannot open peakflow file %s.\n", globals->peakfilename);
             }
             else
-                fprintf(peakfile, "%i\n%i\n\n", peaksave_size, globals->type);
+                fprintf(peakfile, "%i\n%i\n\n", peaksave_size, globals->model_uid);
         }
         
         MPI_Bcast(&error, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
@@ -1498,7 +1498,7 @@ int DumpStateText(Link* sys, unsigned int N, int* assignments, GlobalVars* globa
         MPI_Bcast(&i, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
         if (i)	return 1;
 
-        fprintf(output, "%hu\n%u\n0.0\n\n", globals->type, N);
+        fprintf(output, "%hu\n%u\n0.0\n\n", globals->model_uid, N);
 
         for (i = 0; i < N; i++)
         {
@@ -1574,7 +1574,7 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
             MPI_Bcast(&res, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
         //Set attributes
-        unsigned short type = globals->type;
+        unsigned short type = globals->model_uid;
         H5LTset_attribute_string(file_id, "/", "version", PACKAGE_VERSION);
         H5LTset_attribute_ushort(file_id, "/", "model", &type, 1);
         H5LTset_attribute_uint(file_id, "/", "unix_time", &unix_time, 1);

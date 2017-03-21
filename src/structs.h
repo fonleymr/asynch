@@ -229,7 +229,7 @@ typedef struct Output {
 ///
 struct GlobalVars
 {
-    unsigned short int type;        //!< Index for the model used
+    unsigned short int model_uid;   //!< Index for the model used
     AsynchModel *model;             //!< A pointer to the model
 
     double maxtime;                 //!< Integrate up to this time (duration) [minutes]
@@ -553,8 +553,8 @@ struct TransData
 
 struct Lookup
 {
-    unsigned int id;
-    unsigned int loc;
+    unsigned int id;    //!< if of the link
+    unsigned int loc;   //!< idx of the link in the system array
 };
 
 
@@ -568,18 +568,18 @@ struct AsynchSolver
     int my_rank;		//!< This processes rank in the comm (varies by proc)
 
     //Routines for checking what is initialized
-    short int setup_gbl;
-    short int setup_topo;
-    short int setup_params;
-    short int setup_partition;
-    short int setup_rkdata;
-    short int setup_initmodel;
-    short int setup_initconds;
-    short int setup_forcings;
-    short int setup_dams;
-    short int setup_stepsizes;
-    short int setup_savelists;
-    short int setup_finalized;
+    bool setup_gbl;
+    bool setup_topo;
+    bool setup_params;
+    bool setup_partition;
+    bool setup_rkdata;
+    bool setup_initmodel;
+    bool setup_initconds;
+    bool setup_forcings;
+    bool setup_dams;
+    bool setup_stepsizes;
+    bool setup_savelists;
+    bool setup_finalized;
 
     //Model
     AsynchModel* model;         //!< The object model

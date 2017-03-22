@@ -7,11 +7,9 @@
 
 
 #include <stdbool.h>
+#include <stdio.h>
 
-#include "structs.h"
-#include "comm.h"
-#include "modeloutputs.h"
-#include "processdata.h"
+#include <structs.h>
 
 extern int np;
 extern int my_rank;

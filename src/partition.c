@@ -10,7 +10,7 @@
 
 #include <mpi.h>
 
-#include "partition.h"
+#include <partition.h>
 
 //Partitions a river system by first partitioning the leaves.
 //Link** sys: The river system.

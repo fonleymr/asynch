@@ -9,7 +9,7 @@
 #include <assert.h>
 #include <memory.h>
 
-#include "blas.h"
+#include <blas.h>
 
 // Copies a vector, x, to a vector, y
 void dcopy(const double * restrict const x, double * restrict y, unsigned int begin, unsigned int end)
@@ -23,7 +23,6 @@ void dcopy(const double * restrict const x, double * restrict y, unsigned int be
 }
 
 
-#pragma omp declare simd notinbranch simdlen(8)
 // y = a*x + y
 void daxpy(double alpha, const double * restrict const x, double * restrict y, unsigned int begin, unsigned int end)
 {
@@ -31,7 +30,6 @@ void daxpy(double alpha, const double * restrict const x, double * restrict y, u
     assert(y != NULL);
     assert(begin < end);
 
-#pragma ivdep
     for (unsigned int i = begin; i < end; i++)
         y[i] += alpha * x[i];
 }
@@ -515,7 +513,7 @@ void dsub(const double * restrict const u, const double * restrict const v, doub
 
 //Computes the infinity norm of v. v_i is divided first by w_i.
 // max(v_i / w_i)
-double nrminf(const double * restrict const v, const double * restrict const w, unsigned int begin, unsigned int end)
+double nrminf2(const double * restrict const v, const double * restrict const w, unsigned int begin, unsigned int end)
 {
     assert(v != NULL);
     assert(w != NULL);
@@ -544,6 +542,19 @@ double nrminf(const double * restrict const v, const double * restrict const w, 
 //    }
 //    return norm;
 //}
+
+//Computes the infinity norm of the vector v.
+double nrminf(const double * restrict const v, unsigned int begin, unsigned int end)
+{
+    double norm = fabs(v[begin]);
+    for (unsigned int i = begin + 1u; i < end; i++)
+    {
+        double val = fabs(v[i]);
+        norm = (norm < val) ? val : norm;
+    }
+    return norm;
+}
+
 
 ////Prints the vector v to stdout.
 //void Print_Vector(VEC v)

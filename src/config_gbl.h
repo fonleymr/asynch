@@ -13,8 +13,10 @@
 ///
 /// \param globalfilename String with the filename of the .gbl file.
 /// \param errors (set by this method) Will contain the error data for the entire river system, if the error data is global.
-/// \param conn NULL pointer that will be set to an SQL database, if needed.
+/// \param forcings 
+/// \param db_connections NULL pointer that will be set to an SQL database, if needed.
 /// \param rkdfilename (set by this method) Will be the filename of the .rkd file, if the error data is not global.
+/// \param model Pointer to a custom model
 /// \return Configuration data read in from the file globalfilename.
 GlobalVars* Read_Global_Data(
     char *globalfilename,

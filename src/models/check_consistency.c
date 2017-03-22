@@ -11,8 +11,8 @@
 
 void CheckConsistency_Nonzero_1States(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
@@ -24,8 +24,8 @@ void CheckConsistency_Nonzero_1States(
 
 void CheckConsistency_Nonzero_2States(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
@@ -39,12 +39,13 @@ void CheckConsistency_Nonzero_2States(
 
 void CheckConsistency_Nonzero_3States(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
     assert(num_dof >= 3);
+
     if (y[0] < 1e-14)
         y[0] = 1e-14;
     if (y[1] < 0.0)
@@ -55,8 +56,8 @@ void CheckConsistency_Nonzero_3States(
 
 void CheckConsistency_Nonzero_4States(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
@@ -74,12 +75,12 @@ void CheckConsistency_Nonzero_4States(
 
 void CheckConsistency_Model5(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
-    assert(num_dof >= 5);
+    assert(num_dof >= 4);
 
     if (y[0] < 1e-14)
         y[0] = 1e-14;
@@ -95,11 +96,12 @@ void CheckConsistency_Model5(
 
 void CheckConsistency_Model30(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
+    assert(num_dof >= 4);
 
     if (y[0] < 1e-14)
         y[0] = 1e-14;
@@ -116,11 +118,12 @@ void CheckConsistency_Model30(
 
 void CheckConsistency_Nonzero_AllStates_q(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
+    assert(num_dof >= 1);
 
     if (y[0] < 1e-14) 
         y[0] = 1e-14;
@@ -131,11 +134,12 @@ void CheckConsistency_Nonzero_AllStates_q(
 
 void CheckConsistency_Nonzero_AllStates_qs(
     double *y, unsigned int num_dof,
-    const double * const params, unsigned int num_params,
     const double * const global_params, unsigned int num_global_params,
+    const double * const params, unsigned int num_params,
     void *user)
 {
     assert(y != NULL);
+    assert(num_dof >= 2);
 
     if (y[0] < 1e-14)
         y[0] = 1e-14;

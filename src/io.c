@@ -8,7 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "io.h"
+#include <io.h>
+#include <processdata.h>
 
 //Creates an OutputFunc object
 void OutputFunc_Init(

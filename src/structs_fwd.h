@@ -22,6 +22,8 @@ typedef struct ConnData ConnData;
 typedef struct Forcing Forcing;
 typedef struct ForcingData ForcingData;
 
+typedef struct QVSData QVSData;
+
 typedef struct OutputFunc OutputFunc;
 
 typedef struct RKMethod RKMethod;

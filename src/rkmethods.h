@@ -7,7 +7,7 @@
 
 #include <stdbool.h>
 
-#include "structs.h"
+#include <structs.h>
 
 //RK methods data
 void RKDense3_2(RKMethod* method);

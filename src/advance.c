@@ -29,8 +29,6 @@ void Advance(
     bool print_flag,
     FILE* outputfile)
 {
-    AsynchModel *the_model = globals->model;
-
     //Initialize remaining data
     short int* done = (short int*)malloc(my_N * sizeof(short int));
     short int parentsval;
@@ -110,7 +108,7 @@ void Advance(
                 //if(current->res && fabs( (current->last_t) - (current->next_save - current->print_time) ) < 1e-12)                
                 if (current->has_res)
                 {
-                    the_model->differential(current->last_t, current->my->list.tail->y_approx, current->dim, NULL, 0, globals->global_params, current->params, current->my->forcing_values, current->user, current->my->list.tail->y_approx);
+                    current->differential(current->last_t, current->my->list.tail->y_approx, current->dim, NULL, 0, globals->global_params, current->params, current->my->forcing_values, current->qvs, current->state, current->user, current->my->list.tail->y_approx);
                     if (current->save_flag && fabs(current->last_t - (current->next_save - current->print_time)) / (current->last_t + 1e-12) < 1e-6)
                     {
                         error_code = overwrite_last_step(current, globals, outputfile);
@@ -122,7 +120,7 @@ void Advance(
         }
         
         // Update forcing
-        Exchange_InitState_At_Forced(sys, N, assignments, getting, res_list, res_size, id_to_loc, globals, the_model);
+        Exchange_InitState_At_Forced(sys, N, assignments, getting, res_list, res_size, id_to_loc, globals);
         
         for (unsigned int i = 0; i < my_N; i++)
         {
@@ -168,7 +166,7 @@ void Advance(
                                 for (unsigned int i = 0; i < globals->num_forcings; i++)		//!!!! Put this in solver !!!!
                                     if (forcings[i].active && current->last_t < current->my->forcing_change_times[i])
                                         current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
-                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                             }
 
                             if (current->last_t + current->h >= maxtime  && current->current_iterations < globals->iter_limit && current->last_t < maxtime)	//If less than a full step is needed, just finish up
@@ -178,7 +176,7 @@ void Advance(
                                         current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                 current->h = min(current->h, maxtime - current->last_t);
                                 assert(current->h > 0);
-                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
 
                                 while (current->rejected == 0)
                                 {
@@ -187,7 +185,7 @@ void Advance(
                                             current->h = min(current->h, current->my->forcing_change_times[i] - current->last_t);
                                     current->h = min(current->h, maxtime - current->last_t);
                                     assert(current->h > 0);
-                                    current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                    current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 }
                             }
                         }
@@ -212,7 +210,7 @@ void Advance(
                                     assert(current->h > 0);
                                 }
 
-                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
 
                                 parentsval = 0;
                                 for (unsigned int i = 0; i < current->num_parents; i++)
@@ -239,7 +237,7 @@ void Advance(
                                     assert(current->h > 0);
                                 }
 
-                                current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 assert(current->h > 0);
 
                                 while (current->last_t < maxtime && current->current_iterations < globals->iter_limit)
@@ -258,7 +256,7 @@ void Advance(
                                     }
 
                                     current->h = min(current->h, maxtime - current->last_t);
-                                    current->rejected = the_model->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
+                                    current->rejected = current->solver(current, globals, assignments, print_flag, outputfile, &db_connections[ASYNCH_DB_LOC_HYDRO_OUTPUT], forcings, workspace);
                                 }
                             }
 
@@ -276,8 +274,8 @@ void Advance(
                             if ((current->current_iterations >= globals->iter_limit) && (current->last_t > child->last_t))
                                 child->h = min(child->h, current->last_t - child->last_t);
 
-                            //if(child->h + child->last_t > current->last_t)
-                            //    child->h *= .999;
+                            if(child->h + child->last_t > current->last_t)
+                                child->h *= .999;
 
                             assert(child->h > 0.0);
 
@@ -298,8 +296,8 @@ void Advance(
                             if (current->parents[i]->current_iterations >= globals->iter_limit)
                                 current->h = min(current->h, current->parents[i]->last_t - current->last_t);
 
-                            //if(current->h + current->last_t > current->parents[i]->last_t)
-                            //    current->h *= .999;
+                            if(current->h + current->last_t > current->parents[i]->last_t)
+                                current->h *= .999;
                         }
 
                         parentsval = 0;

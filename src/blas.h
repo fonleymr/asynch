@@ -48,11 +48,15 @@ void dsub(const double * restrict const u, const double * restrict const v, doub
 //double lagrange(double theta,short unsigned int s,VEC c,VEC* Q);
 //double norm_inf(VEC v,VEC w,unsigned int start);
 
-//Computes the infinity norm of v. v_i is divided first by w_i.
-// max(v_i / w_i)
-double nrminf(const double * restrict const v, const double * restrict const w, unsigned int begin, unsigned int end);
 
-//double vector_norminf(VEC v,unsigned int start);
+/// Computes the infinity norm of the vector v.
+double nrminf(const double * restrict const v, unsigned int begin, unsigned int end);
+
+/// Computes the infinity norm of v. v_i is divided first by w_i.
+/// max(v_i / w_i)
+double nrminf2(const double * restrict const v, const double * restrict const w, unsigned int begin, unsigned int end);
+
+
 //#pragma omp declare simd notinbranch
 //void daxpy_impl(double alpha, double *x, double *y, unsigned int begin, unsigned int end);
 //

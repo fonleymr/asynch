@@ -127,7 +127,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
         v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * error->reltol[i] + error->abstol[i]));
 
     //err_1 = norm_inf(sum,temp,meth->e_order_ratio,1);
-    err_1 = nrminf(sum, temp, 0, link_i->dim);
+    err_1 = nrminf2(sum, temp, 0, link_i->dim);
     double value_1 = pow(1.0 / err_1, 1.0 / meth->e_order);
 
 
@@ -140,7 +140,7 @@ int ExplicitRKSolverDiscont(Link* link_i, GlobalVars* GlobalVars, int* assignmen
         v_set(temp, i, max(fabs(v_at(new_y, i)), fabs(v_at(y_0, i)) * error->reltol_dense[i] + error->abstol_dense[i]));
 
     //err_d = norm_inf(sum,temp,meth->d_order_ratio,1);
-    err_d = nrminf(sum, temp, 0, link_i->dim);
+    err_d = nrminf2(sum, temp, 0, link_i->dim);
     double value_d = pow(1.0 / err_d, 1.0 / meth->d_order);
 
     //Determine a new step size for the next step

@@ -5,6 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+
 extern int my_rank;
 extern int np;
 

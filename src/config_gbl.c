@@ -18,11 +18,11 @@
 
 #include <structs.h>
 #include <globals.h>
-
-#include <config.h>
+#include <config_gbl.h>
 #include <db.h>
-#include <modeloutputs.h>
+#include <outputs.h>
 #include <io.h>
+#include <models/definitions.h>
 
 
 #if defined(_MSC_VER)
@@ -97,12 +97,14 @@ GlobalVars* Read_Global_Data(
     valsread = sscanf(line_buffer, "%hu", &uid);
     if (ReadLineError(valsread, 1, "model type"))	return NULL;
 
-    model = GetModel(uid);
-    if (model == NULL)
-    {
-        printf("Error: Model %hu not defined.\n", uid);
-        return NULL;
-    }
+    globals->model_uid = uid;
+
+    //model = GetModel(uid);
+    //if (model == NULL)
+    //{
+    //    printf("Error: Model %hu not defined.\n", uid);
+    //    return NULL;
+    //}
 
     //Grab the begin and end time
     struct tm begin_tm;
@@ -175,11 +177,16 @@ GlobalVars* Read_Global_Data(
     if (ReadLineError(valsread, 1, "peakflow function name"))	return NULL;
     SetPeakflowOutputFunctions(globals->peakflow_function_name, &(globals->peakflow_output));
 
-    //Grab the parameters
+    //Grab the global parameters
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
     valsread = sscanf(line_buffer, "%u%n", &globals->num_global_params, &total);
     if (ReadLineError(valsread, 1, "number of global parameters"))	return NULL;
     globals->global_params = malloc(globals->num_global_params * sizeof(double));
+    //if (my_rank == 0 && globals->num_global_params != model->num_global_params)
+    //{
+    //    printf("[%i]: Error: Got %u global params in the .gbl file. Expected %u for model %u.\n", my_rank, globals->num_global_params, model->num_global_params, globals->model_uid);
+    //    MPI_Abort(MPI_COMM_WORLD, 1);
+    //}
     for (i = 0; i < globals->num_global_params; i++)
     {
         valsread = sscanf(&(line_buffer[total]), "%lf%n", &globals->global_params[i], &written);
@@ -187,11 +194,11 @@ GlobalVars* Read_Global_Data(
         total += written;
     }
 
-    ////Set dim and other sizes
-    //if (model)
-    //    model->set_param_sizes(globals, external);
-    //else
-    //    SetParamSizes(globals, external);
+    //Set dim and other sizes
+    if (model)
+        model->set_param_sizes(globals, external);
+    else
+        SetParamSizes(globals, external);
 
     //Find the states needed for printing
     globals->num_states_for_printing = 0;
@@ -275,22 +282,21 @@ GlobalVars* Read_Global_Data(
     ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
     valsread = sscanf(line_buffer, "%u", &got_forcings);
     if (ReadLineError(valsread, 1, "rainfall flag"))	return NULL;
-    if (got_forcings < model->num_forcings && my_rank == 0)
+    if (got_forcings < globals->num_forcings && my_rank == 0)
     {
-        printf("[%i]: Error: Got %u forcings in the .gbl file. Expected %u for model %u.\n", my_rank, got_forcings, model->num_forcings, globals->model_uid);
+        printf("[%i]: Error: Got %u forcings in the .gbl file. Expected %u for model %u.\n", my_rank, got_forcings, globals->num_forcings, globals->model_uid);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    if (got_forcings > model->num_forcings && my_rank == 0)
+    if (got_forcings > globals->num_forcings && my_rank == 0)
     {
-        printf("[%i]: Warning: Got %u forcings in the .gbl file. Expected %u for model %u.\n", my_rank, got_forcings, model->num_forcings, globals->model_uid);
+        printf("[%i]: Warning: Got %u forcings in the .gbl file. Expected %u for model %u.\n", my_rank, got_forcings, globals->num_forcings, globals->model_uid);
         globals->num_forcings = got_forcings;
     }
-    globals->num_forcings = model->num_forcings;
 
     //Grab the forcing parameters
     //0 for no rain, 1 for .str file, 2 for binary files, 3 for database, 4 for uniform rain (.ustr)
     globals->hydro_table = globals->peak_table = NULL;
-    for (i = 0; i < model->num_forcings; i++)
+    for (i = 0; i < globals->num_forcings; i++)
     {
         ReadLineFromTextFile(globalfile, line_buffer, line_buffer_len);
         valsread = sscanf(line_buffer, "%hi", &(forcings[i].flag));

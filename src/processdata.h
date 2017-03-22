@@ -11,11 +11,11 @@
 #include <config_msvc.h>
 #endif
 
-#include "structs.h"
-#include "sort.h"
-#include "comm.h"
-#include "rkmethods.h"
-#include "data_types.h"
+#include <structs.h>
+#include <sort.h>
+#include <comm.h>
+#include <rkmethods.h>
+#include <data_types.h>
 
 #define DB_CONNS_AT_ONCE 10
 

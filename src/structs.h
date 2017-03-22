@@ -65,7 +65,7 @@ struct Workspace
     double *sum, *temp, *temp2, *temp3;    //!< Vectors for summations and temp workspace. size = dim of problem at each link.
 
     double *stages_parents_approx;      //!< Matrix of vectors to hold temporary work from parent links. [num_stages][max_parents][dim]
-    double *parents_approx;         //!< Matrix of vectors to hold temporary work from parent links. [max_parents][dim]
+    double *parents_approx;             //!< Matrix of vectors to hold temporary work from parent links. [max_parents][dim]
     double *temp_k;                     //!< Vector of vectors to hold temporary internal stage values.[num_stages][dim]    
 
     double *temp_k_slices[ASYNCH_MAX_SOLVER_STAGES];
@@ -229,8 +229,7 @@ typedef struct Output {
 ///
 struct GlobalVars
 {
-    unsigned short int model_uid;   //!< Index for the model used
-    AsynchModel *model;             //!< A pointer to the model
+    unsigned short model_uid;       //!< Index for the model used
 
     double maxtime;                 //!< Integrate up to this time (duration) [minutes]
     double t_0;                     //!< Initial time to start integration
@@ -240,6 +239,7 @@ struct GlobalVars
     time_t end_time;          //!< Unix end time
 
     unsigned short method;          //!< RK method to use (if it is the same for all links)
+    unsigned int max_localorder;    //!< Max local order of implemented numerical methods
     unsigned short max_rk_stages;   //!< The largest number of internal stages of any RK method used    !!!! Is this needed? !!!!
     unsigned short max_parents;     //!< The largest number of parents any link has
     int iter_limit;                 //!< If a link has >= iter_limit of steps stored, no new computations occur
@@ -250,8 +250,7 @@ struct GlobalVars
     //unsigned int first_file;      //!< The index of the first rainfall file
     //unsigned int last_file;       //!< The index of the last rainfall file
     unsigned int discont_size;      //!< Size of discont, discont_send, discont_order_send at each link
-    //double file_time;             //!< The time duration that a rainfall file lasts
-    unsigned int max_localorder;    //!< Max local order of implemented numerical methods
+    //double file_time;             //!< The time duration that a rainfall file lasts    
     //unsigned int diff_start;      //!< Starting index of differential variables in solution vectors
     //unsigned int no_ini_start;    //!< Starting index of differential variables not read from disk
     unsigned short int uses_dam;    //!< 1 if this type can use dams, 0 else
@@ -260,12 +259,12 @@ struct GlobalVars
     double *global_params;              //!< List of global parameters
     unsigned int num_global_params;    //!< Number of global parameters
     
-    //unsigned int params_size;       //!< Size of params at each link without a dam
-    ////unsigned int iparams_size;    //!< Size of iparams at each link
-    unsigned int dam_params_size;   //!< Size of params at each link with a dam
-    //unsigned int disk_params;       //!< Number of parameters to read from disk
-    //unsigned int area_idx;          //!< Index of upstream area (A_i) in params
-    //unsigned int areah_idx;         //!< Index of hillslope area (A_h) in params
+    unsigned int num_params;        //!< Number of params at each link without a dam
+    ////unsigned int iparams_size;    //!< Number of iparams at each link
+    unsigned int dam_params_size;   //!< Number of params at each link with a dam
+    unsigned int num_disk_params;   //!< Number of parameters to read from disk
+    unsigned int area_idx;          //!< Index of upstream area (A_i) in params
+    unsigned int areah_idx;         //!< Index of hillslope area (A_h) in params
     char* rain_filename;
     char* init_filename;
     char* rvr_filename;
@@ -387,12 +386,12 @@ struct Link
     double *params;                     //!< Parameters unique for the ODE for this link
     unsigned int num_params;            //!< Number of parameters unique for the ODE for this link
 
-    //DifferentialFunc *differential; //!< Right-hand side function for ODE
-    //JacobianFunc *jacobian;         //!< jacobian of right-hand side function
-    //AlgebraicFunc *algebraic;       //!< Function for algebraic variables
-    //CheckStateFunc *check_state;    //!< Function to check what "state" the state variables are in (for discontinuities)
-    //RKSolverFunc *solver;           //!< RK solver to use
-    //CheckConsistencyFunc *check_consistency; //!< Function to check state variables
+    DifferentialFunc *differential;     //!< Right-hand side function for ODE
+    JacobianFunc *jacobian;             //!< jacobian of right-hand side function
+    AlgebraicFunc *algebraic;           //!< Function for algebraic variables
+    CheckStateFunc *check_state;        //!< Function to check what "state" the state variables are in (for discontinuities)
+    RKSolverFunc *solver;               //!< RK solver to use
+    CheckConsistencyFunc *check_consistency; //!< Function to check state variables
 
     double h;                           //!< Current step size
     double last_t;                      //!< Last time in which a numerical solution was calculated
@@ -402,8 +401,8 @@ struct Link
     
     //Topology
     unsigned short int num_parents;     //!< Number of upstream links
-    struct Link **parents;             //!< An array of all upstream links (parents)
-    struct Link *child;                //!< The downstream link (child)
+    Link **parents;                     //!< An array of all upstream links (parents)
+    Link *child;                        //!< The downstream link (child)
 
     unsigned int disk_iterations;       //!< Number of iterations stored on disk
 
@@ -421,7 +420,7 @@ struct Link
     unsigned short int peak_flag;       //!< 1 if saving peak flow data for this link, 0 if not
     //unsigned int** upstream;          //!< upstream[i] is a list of links (loc) upstream (inclusive) to parent i
     //unsigned int* numupstream;        //!< numupstream[i] is size of upstream[i]
-    //struct QVSData* qvs;               //!< Holds the discharge vs storage data
+    QVSData* qvs;                       //!< Holds the discharge vs storage data
     //fpos_t pos;                       //!< Current location in temporary output file
     long int pos_offset;
     unsigned int expected_file_vals;    //!< Expected number of entries in temp output file

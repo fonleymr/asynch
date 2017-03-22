@@ -13,7 +13,7 @@
 #include <libpq-fe.h>
 #endif
 
-#include "minmax.h"
+#include <minmax.h>
 #include <db.h>
 #include <system.h>
 #include <forcings.h>

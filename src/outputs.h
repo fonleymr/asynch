@@ -5,8 +5,8 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs.h"
-#include "data_types.h"
+#include <structs.h>
+#include <data_types.h>
 
 extern int np;
 extern int my_rank;
@@ -26,7 +26,7 @@ unsigned int CalcTotalOutputSize(GlobalVars* GlobalVars);
 bool AreOutputsSet(GlobalVars* GlobalVars);
 int PeakflowOutputsSet(GlobalVars* GlobalVars);
 
-/// Built-in  Output functions
+/// Built-in Output functions
 int Output_LinkID(unsigned int id, double t, double *y, unsigned int num_dof);
 double Output_Time(unsigned int id, double t, double *y, unsigned int num_dof);
 float Output_State0(unsigned int id, double t, double *y, unsigned int num_dof);

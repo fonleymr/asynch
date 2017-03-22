@@ -24,19 +24,20 @@
 #include <mpi.h>
 #endif
 
-#include "structs.h"
-#include "config.h"
-#include "db.h"
-#include "comm.h"
-#include "riversys.h"
-#include "processdata.h"
-#include "advance.h"
-#include "io.h"
-#include "data_types.h"
-#include "forcings.h"
-#include "blas.h"
+#include <structs.h>
+#include <config_gbl.h>
+#include <db.h>
+#include <comm.h>
+#include <riversys.h>
+#include <processdata.h>
+#include <outputs.h>
+#include <advance.h>
+#include <io.h>
+#include <data_types.h>
+#include <forcings.h>
+#include <blas.h>
 
-#include "asynch_interface.h"
+#include <asynch_interface.h>
 
 //Initializes the asynch solver object.
 AsynchSolver* Asynch_Init(MPI_Comm comm)
@@ -1215,8 +1216,10 @@ void Asynch_Set_System_State(AsynchSolver* asynch, double unix_time, double* sta
             if (model->check_state != NULL)
                 current->state = model->check_state(
                     current->my->list.head->y_approx, current->dim,
-                    model->global_params, model->num_global_params,
+                    globals->global_params, globals->num_global_params,
                     current->params, current->num_params,
+                    current->qvs,
+                    current->state,
                     current->user);
             
             current->my->list.head->state = current->state;
@@ -1336,7 +1339,7 @@ void Asynch_Get_Global_Parameters(AsynchSolver* asynch, double *gparams)
     if (!asynch || !asynch->globals)
         return;
 
-    dcopy(asynch->model->global_params, gparams, 0, asynch->model->num_global_params);
+    dcopy(asynch->globals->global_params, gparams, 0, asynch->globals->num_global_params);
 }
 
 //Sets the global parameters. n is the number of new parameters.
@@ -1348,8 +1351,8 @@ int Asynch_Set_Global_Parameters(AsynchSolver* asynch, double *gparams, unsigned
         return 1;
     
     asynch->model->num_global_params = num_params;
-    realloc(asynch->model->global_params, num_params * sizeof(double));
-    dcopy(gparams, asynch->model->global_params, 0, num_params);
+    realloc(asynch->globals->global_params, num_params * sizeof(double));
+    dcopy(gparams, asynch->globals->global_params, 0, num_params);
 
     return 0;
 }

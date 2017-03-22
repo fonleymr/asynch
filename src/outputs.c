@@ -14,7 +14,7 @@
 #endif
 
 #include <asynch_interface.h>
-#include <modeloutputs.h>
+#include <outputs.h>
 
 void SetDefaultOutputFunctions(char* outputname, Output *output, unsigned int* states_used, unsigned int* num_states_used)
 {

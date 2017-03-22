@@ -24,25 +24,24 @@ AsynchModel const * GetModel(unsigned short model_uid)
 {
     AsynchModel const *res = NULL;
 
-    /// An array of available model definitions
-    AsynchModel const * models[] = {
-        &model_190,
-        &model_252
-    };
+    //// An array of available model definitions
+    //AsynchModel const * models[] = {
+    //    &model_190,
+    //    &model_252
+    //};
 
-    /// Number of model registered
-    unsigned int num_models = sizeof(models) / sizeof(AsynchModel const *);
+    ///// Number of model registered
+    //unsigned int num_models = 0;
 
-
-    // Search for model
-    for (unsigned int i = 0; i < num_models; i++)
-    {
-        if (models[i]->uid == model_uid)
-        {
-            res = models[i];
-            break;
-        }
-    }
+    //// Search for model
+    //for (unsigned int i = 0; i < num_models; i++)
+    //{
+    //    if (models[i]->uid == model_uid)
+    //    {
+    //        res = models[i];
+    //        break;
+    //    }
+    //}
 
     return res;
 }

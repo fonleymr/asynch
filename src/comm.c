@@ -12,8 +12,8 @@
 #include <libpq-fe.h>
 #endif
 
-#include "comm.h"
-#include "minmax.h"
+#include <comm.h>
+#include <minmax.h>
 
 
 // **********  MPI related routines  **********
@@ -474,8 +474,7 @@ void Exchange_InitState_At_Forced(
     unsigned int* assignments, short int* getting,
     unsigned int* res_list, unsigned int res_size,
     const Lookup * const id_to_loc,
-    GlobalVars* globals,
-    AsynchModel* model)
+    GlobalVars* globals)
 {
     //Find links with state forcing
     if (globals->res_flag)
@@ -491,13 +490,15 @@ void Exchange_InitState_At_Forced(
                 if (loc < N && assignments[loc] == my_rank)
                 {
                     //!!!! Not sure if this the way to go... !!!!
-                    model->differential(
+                    link->differential(
                         link->last_t,
                         link->my->list.tail->y_approx, link->dim,
                         NULL, 0,
                         globals->global_params,
                         link->params,
                         link->my->forcing_values,
+                        link->qvs,
+                        link->state,
                         link->user,
                         link->my->list.tail->y_approx);
 

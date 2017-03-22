@@ -11,39 +11,42 @@
 #include <unistd.h>
 #endif
 
-#include <check_consistency.h>
 #include <rksteppers.h>
-#include <problems.h>
-#include "builtin.h"
+#include <models/definitions.h>
+#include <models/equations.h>
+#include <models/check_consistency.h>
+#include <models/check_state.h>
 
 //Sets the various sizes and flags for the model. This method should set the following fields:
 //dim:			The number of unknowns in the differential equations (or the number of ODEs at each link).
 //diff_start:		The starting index of the differential unknowns.
 //str_flag:		1 if reading rainfall data from a .str file, 0 else.
 //binrain_flag:		1 if reading rainfall data from binary files, 0 else.
-//uses_dam:		1 if dams are compatible with the model given by type.
+//uses_dam:		1 if dams are compatible with the model given by model_uid.
 //params_size:		The total number of parameters (including precalculations) at links with no dam.
 //dam_params_size:	The total number of parameters (including precalculations) at links with a dam.
 //area_idx:		The entry in params where the upstream area is stored.
 //disk_params:		The number of enries in param that are read from DEM data.
 //Currently, this program assumes the same number of differential equations at each link.
 //UnivVars* GlobalVars:	Contains the global variables for the system.
-void SetParamSizes(GlobalVars* globals, void* external)
+void SetParamSizes(
+    GlobalVars* globals,
+    void* external)
 {
-    unsigned short int type = globals->model_uid;
+    unsigned short int model_uid = globals->model_uid;
     unsigned int num_global_params;
 
     //Set dim and start of differential variables
-    switch (type)
+    switch (model_uid)
     {
         //--------------------------------------------------------------------------------------------
     case 0:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 0;
         globals->min_error_tolerances = 1;
@@ -51,11 +54,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 1: num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -63,11 +66,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 2: num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -75,11 +78,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 3: num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -87,11 +90,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 4: num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -99,11 +102,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 5: num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -111,11 +114,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 6: num_global_params = 5;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 14;
+        globals->num_disk_params = 14;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -123,11 +126,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 15: 	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -135,11 +138,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 19:	num_global_params = 7;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -147,11 +150,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 20:	num_global_params = 9;
         globals->uses_dam = 0;
-        globals->params_size = 6;
+        globals->num_params = 6;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -159,11 +162,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 21:	num_global_params = 7;
         globals->uses_dam = 1;
-        globals->params_size = 7;	//Need 1 extra for orifice_area
+        globals->num_params = 7;	//Need 1 extra for orifice_area
         globals->dam_params_size = 15;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -171,11 +174,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 22:	num_global_params = 4;
         globals->uses_dam = 1;
-        globals->params_size = 10;		//Need 1 extra for orifice_area
+        globals->num_params = 10;		//Need 1 extra for orifice_area
         globals->dam_params_size = 18;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 6;
+        globals->num_disk_params = 6;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -183,11 +186,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 23:	num_global_params = 4;
         globals->uses_dam = 1;
-        globals->params_size = 10;		//Need 1 extra for orifice_area
+        globals->num_params = 10;		//Need 1 extra for orifice_area
         globals->dam_params_size = 18;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 6;
+        globals->num_disk_params = 6;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -195,11 +198,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 30:	num_global_params = 7;
         globals->uses_dam = 0;
-        globals->params_size = 21;
+        globals->num_params = 21;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 0;
         globals->num_forcings = 2;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -207,11 +210,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 40:	num_global_params = 4;
         globals->uses_dam = 1;
-        globals->params_size = 9;
+        globals->num_params = 9;
         globals->dam_params_size = 6;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 6;
+        globals->num_disk_params = 6;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -219,11 +222,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 60:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 4;
+        globals->num_disk_params = 4;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -237,11 +240,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 105:	num_global_params = 0;
         globals->uses_dam = 0;
-        globals->params_size = 16;
+        globals->num_params = 16;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -249,11 +252,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 190:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 2;
         globals->min_error_tolerances = 3;
@@ -261,22 +264,22 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 191:	num_global_params = 7;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 6;
         break;
         //--------------------------------------------------------------------------------------------
     case 200:	num_global_params = 10;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -284,11 +287,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 219:	num_global_params = 3;
         globals->uses_dam = 0;
-        globals->params_size = 5;
+        globals->num_params = 5;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -296,11 +299,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 250:	num_global_params = 9;
         globals->uses_dam = 0;
-        globals->params_size = 9;
+        globals->num_params = 9;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 4;
+        globals->num_disk_params = 4;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -308,11 +311,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 252:	num_global_params = 11;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 2;
         globals->min_error_tolerances = 4;
@@ -320,11 +323,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 253:	num_global_params = 11;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 3;
         globals->min_error_tolerances = 4;
@@ -332,11 +335,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 254:	num_global_params = 12;
         globals->uses_dam = 0;
-        globals->params_size = 8;
+        globals->num_params = 8;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 3;
         globals->min_error_tolerances = 7;
@@ -344,11 +347,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 255:	num_global_params = 3;
         globals->uses_dam = 1;
-        globals->params_size = 16;
+        globals->num_params = 16;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 11;
+        globals->num_disk_params = 11;
         globals->convertarea_flag = 0;
         globals->num_forcings = 3;
         globals->min_error_tolerances = 5;
@@ -356,11 +359,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 260:	num_global_params = 11;
         globals->uses_dam = 0;
-        globals->params_size = 6;
+        globals->num_params = 6;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 3;
+        globals->num_disk_params = 3;
         globals->convertarea_flag = 0;
         globals->num_forcings = 2;
         globals->min_error_tolerances = 4;
@@ -368,11 +371,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 261:	num_global_params = 6;
         globals->uses_dam = 1;
-        globals->params_size = 13;
+        globals->num_params = 13;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 9;
+        globals->num_disk_params = 9;
         globals->convertarea_flag = 0;
         globals->num_forcings = 4;
         globals->min_error_tolerances = 8;
@@ -380,11 +383,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 262:	num_global_params = 6;
         globals->uses_dam = 1;
-        globals->params_size = 14;
+        globals->num_params = 14;
         globals->dam_params_size = 0;
         globals->area_idx = 0;
         globals->areah_idx = 2;
-        globals->disk_params = 10;
+        globals->num_disk_params = 10;
         globals->convertarea_flag = 0;
         globals->num_forcings = 3;
         globals->min_error_tolerances = 8;
@@ -392,11 +395,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 300:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -404,11 +407,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 301:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -416,11 +419,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 315:	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 0;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
@@ -428,17 +431,17 @@ void SetParamSizes(GlobalVars* globals, void* external)
         //--------------------------------------------------------------------------------------------
     case 2000: 	num_global_params = 6;
         globals->uses_dam = 0;
-        globals->params_size = 20;
+        globals->num_params = 20;
         globals->dam_params_size = 0;
         globals->area_idx = 2;
         globals->areah_idx = 1;
-        globals->disk_params = 12;
+        globals->num_disk_params = 12;
         globals->convertarea_flag = 1;
         globals->num_forcings = 1;
         globals->min_error_tolerances = 1;	//This should probably be higher...
         break;
         //--------------------------------------------------------------------------------------------
-    default:	printf("Error: Invalid type (%u) in SetParamSizes.\n", type);
+    default:	printf("Error: Invalid model_uid (%u) in SetParamSizes.\n", model_uid);
         MPI_Abort(MPI_COMM_WORLD, 1);
         //--------------------------------------------------------------------------------------------
     }
@@ -446,11 +449,11 @@ void SetParamSizes(GlobalVars* globals, void* external)
     //Make sure the appropriate number of global parameters are given
     if (globals->num_global_params < num_global_params)
     {
-        printf("\nError: Obtained %u parameters from .gbl file. Expected %u for model type %hu.\n", globals->num_global_params, num_global_params, type);
+        printf("\nError: Obtained %u parameters from .gbl file. Expected %u for model model_uid %hu.\n", globals->num_global_params, num_global_params, model_uid);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
     if (globals->num_global_params > num_global_params)
-        printf("\nWarning: Obtained %u parameters from .gbl file. Expected %u for model type %hu.\n", globals->num_global_params, num_global_params, type);
+        printf("\nWarning: Obtained %u parameters from .gbl file. Expected %u for model model_uid %hu.\n", globals->num_global_params, num_global_params, model_uid);
 }
 
 
@@ -458,73 +461,76 @@ void SetParamSizes(GlobalVars* globals, void* external)
 //so these changes are available in all routines of definetype.c, if params is available. Note that dam data
 //and precalculations are not available here.
 //VEC* params:		Vector of parameters to convert.
-//unsigned int type:	The index of the model.
-void ConvertParams(double *params, unsigned int type, void* external)
+//unsigned int model_uid:	The index of the model.
+void ConvertParams(
+    double *params,
+    unsigned int model_uid,
+    void* external)
 {
-    if (type == 19)
+    if (model_uid == 19)
     {
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
-    else if (type == 190 || type == 191)
+    else if (model_uid == 190 || model_uid == 191)
     {
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
-    else if (type == 20)
+    else if (model_uid == 20)
     {
         //params[0] *= 1e6;	//km^2 -> m^2
         params[1] *= 1000;	//km -> m
         params[2] *= 1e6;	//km^2 -> m^2
     }
-    else if (type == 60)
+    else if (model_uid == 60)
     {
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
         params[3] *= 1e-3;	//h_b: mm->m
     }
-    else if (type == 21)
+    else if (model_uid == 21)
     {
         //params[0] *= 1e6;	//km^2 -> m^2
         params[1] *= 1000;	//km -> m
         params[2] *= 1e6;	//km^2 -> m^2
     }
-    else if (type == 22 || type == 23 || type == 40)
+    else if (model_uid == 22 || model_uid == 23 || model_uid == 40)
     {
         //params[0] *= 1e6;	//km^2 -> m^2
         params[1] *= 1000;	//km -> m
         params[2] *= 1e6;	//km^2 -> m^2
     }
-    else if (type <= 5)
+    else if (model_uid <= 5)
     {
         params[0] *= 1000;	//km -> m
         params[3] *= .001;	//mm -> m
         params[4] *= .001;	//mm -> m
     }
-    else if (type == 6)
+    else if (model_uid == 6)
     {
         params[0] *= 1000;	//km -> m
         params[3] *= .001;	//mm -> m
     }
-    else if (type == 15 || type == 315)
+    else if (model_uid == 15 || model_uid == 315)
     {
         params[0] *= 1000;	//L: km -> m
         params[3] *= .001;	//h_b: mm -> m
         params[4] *= .001;	//h_H: mm -> m
     }
-    else if (type == 30)
+    else if (model_uid == 30)
     {
         params[0] *= 1000;		//L_h:  km -> m
         params[4] *= .001;		//H_h:  mm -> m
         params[5] *= 1000.0; 	//MaxInfRate:  m/hr -> mm/hr
     }
-    else if (type == 105)
+    else if (model_uid == 105)
     {
         params[0] *= 1000;	//km -> m
         params[3] *= .001;	//mm -> m
         params[4] *= .001;	//mm -> m
     }
-    else if (type == 200)	//!!!! Did I screw these up on accident?!!!!
+    else if (model_uid == 200)	//!!!! Did I screw these up on accident?!!!!
     {
         params[0] *= 1000;	//L_h:  km -> m
                                 /*
@@ -533,39 +539,39 @@ void ConvertParams(double *params, unsigned int type, void* external)
                                 params[5] *= 1000.0; //MaxInfRate:  m/hr -> mm/hr
                                 */
     }
-    else if (type == 219)
+    else if (model_uid == 219)
     {
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
-    else if (type == 250)
+    else if (model_uid == 250)
     {
         params[1] *= 1000;		//L_h: km -> m
         params[2] *= 1e6;		//A_h: km^2 -> m^2
         params[4] *= .001;		//H_h: mm -> m
     }
-    else if (type == 252 || type == 260 || type == 254 || type == 261 || type == 262)
+    else if (model_uid == 252 || model_uid == 260 || model_uid == 254 || model_uid == 261 || model_uid == 262)
     {
         params[1] *= 1000;		//L_h: km -> m
         params[2] *= 1e6;		//A_h: km^2 -> m^2
     }
-    else if (type == 253)
+    else if (model_uid == 253)
     {
         params[1] *= 1000;		//L_h: km -> m
         params[2] *= 1e6;		//A_h: km^2 -> m^2
     }
-    else if (type == 255)
+    else if (model_uid == 255)
     {
         params[1] *= 1000;		//L_h: km -> m
         params[2] *= 1e6;		//A_h: km^2 -> m^2
     }
-    else if (type == 300 || type == 301)
+    else if (model_uid == 300 || model_uid == 301)
     {
         params[0] *= 1000;	//km -> m
         params[3] *= .001;	//mm -> m
         params[4] *= .001;	//mm -> m
     }
-    else if (type == 2000)
+    else if (model_uid == 2000)
     {
         params[0] *= 1000;	//km -> m
         params[3] *= .001;	//mm -> m
@@ -578,15 +584,20 @@ void ConvertParams(double *params, unsigned int type, void* external)
 //	and link->solver. The Jacobian of f (link->jacobian) may be set here, if using an
 //	implicit solver.
 //Link* link: 		The link at which the ODEs and Runge-Kutta solver are selected.
-//unsigned int type: 	The index of the model to be set.
+//unsigned int model_uid: 	The index of the model to be set.
 //unsigned int exp_imp: 0 if using an explicit solver, 1 if implicit.
 //unsigned int dam: 	0 if no dam is present at link, 1 if a dam is present.
-void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned short int dam, void* external)
+void InitRoutines(
+    Link* link,
+    unsigned int model_uid,
+    unsigned int exp_imp,
+    unsigned short dam,
+    void* external)
 {
     //Select appropriate RK Solver for the numerical method (link->solver)
-    if ((type == 21 || type == 22 || type == 23 || type == 40 || type == 261 || type == 262) && dam == 1)
+    if ((model_uid == 21 || model_uid == 22 || model_uid == 23 || model_uid == 40 || model_uid == 261 || model_uid == 262) && dam == 1)
         link->solver = &ExplicitRKIndex1SolverDam;
-    else if ((type == 21 || type == 22 || type == 23 || type == 40 || type == 261 || type == 262) && dam == 0)
+    else if ((model_uid == 21 || model_uid == 22 || model_uid == 23 || model_uid == 40 || model_uid == 261 || model_uid == 262) && dam == 0)
         link->solver = &ExplicitRKIndex1Solver;
     else if (exp_imp == 0)
         link->solver = &ExplicitRKSolver;
@@ -596,7 +607,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         printf("Warning: No solver selected for link ID %u.\n", link->ID);
 
     //Select the RHS function of the ODE (link->differential, link->jacobian)
-    if (type == 0)
+    if (model_uid == 0)
     {
         link->dim = 1;
         link->no_ini_start = link->dim;
@@ -612,7 +623,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_1States;
     }
-    else if (type == 1 || type == 3)
+    else if (model_uid == 1 || model_uid == 3)
     {
         link->dim = 2;
         link->no_ini_start = link->dim;
@@ -627,7 +638,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_2States;
     }
-    else if (type == 2)
+    else if (model_uid == 2)
     {
         link->dim = 2;
         link->no_ini_start = link->dim;
@@ -642,7 +653,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_2States;
     }
-    else if (type == 4)
+    else if (model_uid == 4)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -658,7 +669,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 5)
+    else if (model_uid == 5)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -673,7 +684,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Model5;
     }
-    else if (type == 6)
+    else if (model_uid == 6)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -688,7 +699,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 15)
+    else if (model_uid == 15)
     {
         link->dim = 2;
         link->no_ini_start = link->dim;
@@ -703,7 +714,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_2States;
     }
-    else if (type == 19)
+    else if (model_uid == 19)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -718,7 +729,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 20)
+    else if (model_uid == 20)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -733,7 +744,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 21)
+    else if (model_uid == 21)
     {
         link->dim = 4;
         link->no_ini_start = 2;
@@ -749,7 +760,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 22)
+    else if (model_uid == 22)
     {
         link->dim = 4;
         link->no_ini_start = 2;
@@ -765,7 +776,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check2;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 23)
+    else if (model_uid == 23)
     {
         link->dim = 4;
         link->no_ini_start = 2;
@@ -781,7 +792,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check3;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 30)
+    else if (model_uid == 30)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -796,7 +807,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Model30;
     }
-    else if (type == 40)
+    else if (model_uid == 40)
     {
         link->dim = 4;
         link->no_ini_start = 2;
@@ -812,7 +823,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check_qvs;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 60)
+    else if (model_uid == 60)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -827,7 +838,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 101)
+    else if (model_uid == 101)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -843,7 +854,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 105)
+    else if (model_uid == 105)
     {
         link->dim = 2;
         link->no_ini_start = link->dim;
@@ -858,7 +869,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_2States;
     }
-    else if (type == 190)
+    else if (model_uid == 190)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -873,7 +884,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 191)
+    else if (model_uid == 191)
     {
         link->dim = 6;
         link->no_ini_start = 3;
@@ -894,7 +905,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
-    else if (type == 200)	//This is for use with SIMPLE only
+    else if (model_uid == 200)	//This is for use with SIMPLE only
     {
         link->dim = 2;
         link->no_ini_start = 1;
@@ -909,7 +920,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_2States;
     }
-    else if (type == 219)
+    else if (model_uid == 219)
     {
         link->dim = 1;
         link->no_ini_start = link->dim;
@@ -924,7 +935,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_1States;
     }
-    else if (type == 250)
+    else if (model_uid == 250)
     {
         link->dim = 3;
         link->no_ini_start = link->dim;
@@ -939,7 +950,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_3States;
     }
-    else if (type == 252)
+    else if (model_uid == 252)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -954,7 +965,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 253)
+    else if (model_uid == 253)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -974,7 +985,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 254)
+    else if (model_uid == 254)
     {
         link->dim = 7;
         link->no_ini_start = 4;
@@ -995,7 +1006,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
-    else if (type == 255)
+    else if (model_uid == 255)
     {
         link->dim = 5;
         link->no_ini_start = 5;
@@ -1020,7 +1031,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check_qvs;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
-    else if (type == 260)
+    else if (model_uid == 260)
     {
         link->dim = 4;
         link->no_ini_start = link->dim;
@@ -1035,7 +1046,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
-    else if (type == 261)
+    else if (model_uid == 261)
     {
         link->dim = 8;
         link->no_ini_start = 5;
@@ -1059,7 +1070,7 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check_qvs;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
-    else if (type == 262)
+    else if (model_uid == 262)
     {
         link->dim = 8;
         link->no_ini_start = 5;
@@ -1087,57 +1098,57 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
         link->check_state = &dam_check_qvs;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_qs;
     }
-    else if (type == 300)
-    {
-        link->dim = 2;
-        link->no_ini_start = 1;
-        link->diff_start = 0;
+    //else if (model_uid == 300)
+    //{
+    //    link->dim = 2;
+    //    link->no_ini_start = 1;
+    //    link->diff_start = 0;
 
-        link->num_dense = 1;
-        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-        link->dense_indices[0] = 0;
+    //    link->num_dense = 1;
+    //    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+    //    link->dense_indices[0] = 0;
 
-        link->differential = &assim_simple_river;
-        link->algebraic = NULL;
-        link->check_state = NULL;
-        link->check_consistency = &CheckConsistency_Nonzero_1States;
-    }
-    else if (type == 301)	//!!!! For data assimilation. Needs updating. !!!!
-    {
-        printf("!!!! InitRoutines: model 301 needs to be updated. !!!!\n");
+    //    link->differential = &assim_simple_river;
+    //    link->algebraic = NULL;
+    //    link->check_state = NULL;
+    //    link->check_consistency = &CheckConsistency_Nonzero_1States;
+    //}
+    //else if (model_uid == 301)	//!!!! For data assimilation. Needs updating. !!!!
+    //{
+    //    printf("!!!! InitRoutines: model 301 needs to be updated. !!!!\n");
 
-        link->dim = 3;
-        link->no_ini_start = 2;
-        link->diff_start = 0;
+    //    link->dim = 3;
+    //    link->no_ini_start = 2;
+    //    link->diff_start = 0;
 
-        link->num_dense = 1;
-        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-        link->dense_indices[0] = 0;
+    //    link->num_dense = 1;
+    //    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+    //    link->dense_indices[0] = 0;
 
-        link->differential = &assim_river_rainfall;
-        link->algebraic = NULL;
-        link->check_state = NULL;
-        link->check_consistency = &CheckConsistency_Nonzero_2States;
-    }
-    else if (type == 315)
-    {
-        printf("!!!! InitRoutines: model 315 needs to be updated. !!!!\n");
+    //    link->differential = &assim_river_rainfall;
+    //    link->algebraic = NULL;
+    //    link->check_state = NULL;
+    //    link->check_consistency = &CheckConsistency_Nonzero_2States;
+    //}
+    //else if (model_uid == 315)
+    //{
+    //    printf("!!!! InitRoutines: model 315 needs to be updated. !!!!\n");
 
-        link->dim = 2;
-        link->no_ini_start = 2;
-        link->diff_start = 0;
+    //    link->dim = 2;
+    //    link->no_ini_start = 2;
+    //    link->diff_start = 0;
 
-        link->num_dense = 1;
-        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
-        link->dense_indices[0] = 0;
+    //    link->num_dense = 1;
+    //    link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+    //    link->dense_indices[0] = 0;
 
-        link->differential = &assim_river_rainfall_adjusted;
-        link->algebraic = NULL;
-        link->check_state = NULL;
-        link->check_consistency = &CheckConsistency_Nonzero_2States;
-    }
+    //    link->differential = &assim_river_rainfall_adjusted;
+    //    link->algebraic = NULL;
+    //    link->check_state = NULL;
+    //    link->check_consistency = &CheckConsistency_Nonzero_2States;
+    //}
     /*
-    else if(type == 2000)
+    else if(model_uid == 2000)
     {
     link->differential = &parser_test;
     link->algebraic = NULL;
@@ -1158,10 +1169,16 @@ void InitRoutines(Link* link, unsigned int type, unsigned int exp_imp, unsigned 
 //					altered here). Only the entries for precalculations need to be set.
 //unsigned int disk_params:	The first entry of params that should be set here.
 //unsigned int params_size:	First entry of the dam data. Don't change this entry or later unless you want to modify the dam!
-//unsigned int type:		The index of the model.
-void Precalculations(Link* link_i, double *global_params, double *params, unsigned int disk_params, unsigned int params_size, unsigned short int dam, unsigned int type, void* external)
+//unsigned int model_uid:		The index of the model.
+void Precalculations(
+    Link* link_i,
+    double *global_params, unsigned int num_global_params,
+    double *params, unsigned int num_disk_params, unsigned int num_params,
+    unsigned short dam,
+    unsigned int model_uid,
+    void* external)
 {
-    if (type == 19)
+    if (model_uid == 19)
     {
         //Order of parameters: A_i,L_i,A_h,k2,k3,invtau,c_1,c_2
         //The numbering is:	0   1   2   3  4    5    6   7
@@ -1184,7 +1201,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[6] = RC*(0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[7] = (1.0 - RC)*(0.001 / 60.0);	//(mm/hr->m/min)  c_2
     }
-    else if (type == 190 || type == 191)
+    else if (model_uid == 190 || model_uid == 191)
     {
         //Order of parameters: A_i,L_i,A_h,k2,k3,invtau,c_1,c_2
         //The numbering is:	0   1   2   3  4    5    6   7
@@ -1207,7 +1224,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[6] = RC*(0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[7] = (1.0 - RC)*(0.001 / 60.0);	//(mm/hr->m/min)  c_2
     }
-    else if (type == 20)
+    else if (model_uid == 20)
     {
         //Order of parameters: A_i,L_i,A_h,invtau,c_1,c_2
         //The numbering is:	0   1   2    3     4   5
@@ -1270,7 +1287,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
                                                                         vals[7] = F_et*(1.0-RC)*(0.001/60.0);	//(mm/hr->m/min)  c_2
                                                                         */
     }
-    else if (type == 60)
+    else if (model_uid == 60)
     {
         //Order of parameters: A_i,L_i,A_h,h_b,k2,k3,invtau,c_1
         //The numbering is:	0   1   2   3   4  5    6    7 
@@ -1291,7 +1308,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[6] = 60.0*v_r*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
         vals[7] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
     }
-    else if (type == 21)
+    else if (model_uid == 21)
     {
         //Order of parameters: A_i,L_i,A_h,k2,k3,invtau,orifice_area,H_spill,H_max,S_max,alpha,orifice_diam,c_1,c_2,L_spill
         //The numbering is:	0   1   2  3  4    5	       6      7       8     9	  10	    11       12  13  14
@@ -1315,7 +1332,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
 
         if (dam)		vals[6] = 3.1415926535897932 * vals[11] * vals[11] / 4.0;
     }
-    else if (type == 22 || type == 23)
+    else if (model_uid == 22 || model_uid == 23)
     {
         //Order of parameters: A_i,L_i,A_h,RC,v_h,v_r,k2,k3,invtau,orifice_area,H_spill,H_max,S_max,alpha,orifice_diam,c_1,c_2,L_spill
         //The numbering is:	0   1   2  3   4   5   6  7   8          9	  10	  11   12     13      14        15  16   17
@@ -1339,7 +1356,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
 
         if (dam)		vals[9] = 3.1415926535897932 * vals[14] * vals[14] / 4.0; //orifice_area
     }
-    else if (type == 40)
+    else if (model_uid == 40)
     {
         //Order of parameters: A_i,L_i,A_h,RC,v_h,v_r,k2,k3,invtau
         //The numbering is:	0   1   2  3   4   5   6  7   8
@@ -1360,7 +1377,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[7] = v_g * L_i / A_h * 60.0;	//[1/min]  k3
         vals[8] = pow(v_r*pow(A_i, lambda_2) / L_i, 1.0 / (1.0 - lambda_1)) * 60.0; //[1/min]  invtau
     }
-    else if (type <= 5 || type == 200)
+    else if (model_uid <= 5 || model_uid == 200)
     {
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
@@ -1387,7 +1404,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[18] = K_T / 60.0;
         vals[19] = vals[6] / (60.0*s_r);
     }
-    else if (type == 6)
+    else if (model_uid == 6)
     {
         //Order of parameters: L_i,A_h,A_i,h_b,K_sat,K_sp,d_0,d_1,d_2,invbeta,alpha_N,alpha_soil,a_res,v_res,invtau,gamma,c_1,c_2,c_3,c_4
         //The numbering is:     0   1   2   3   4     5    6   7   8     9      10       11       12    13     14    15   16  17  18  19
@@ -1420,7 +1437,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[18] = 1e-3 / 60.0; //c_3
         vals[19] = alpha_N * h_b; //c_4
     }
-    else if (type == 15)
+    else if (model_uid == 15)
     {
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
@@ -1451,7 +1468,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[18] = K_T / 60.0;
         vals[19] = vals[6] / (60.0*s_r);
     }
-    else if (type == 30)
+    else if (model_uid == 30)
     {
         //y_i has q (y_i[0]), s_p (y_i[1]), h_w (y_i[2]), theta (y_i[3])
         //Order of parameters: L_h,A_h,A_up,H_b,H_h,max_inf_rate,K_SAT,S_H,n_vh, b, c, d,K_Q,V_T,c_1,c_2,c_3,c_4,c_5,c_6,c_7
@@ -1491,7 +1508,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         params[19] = (1e3 / 60.0) * A_H;	//c_6
         params[20] = (H_relmax > 1e-12) ? 1e6 * A_H / H_relmax : 0.0;	//c_7
     }
-    else if (type == 105)
+    else if (model_uid == 105)
     {
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,c_1,c_2,c_3
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13  14  15 
@@ -1514,7 +1531,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         //c_3
         vals[15] = 60.0 * 1e-6 * 2.0 / .6 * vals[0] / vals[1] * rootS_h / vals[8];
     }
-    else if (type == 219)
+    else if (model_uid == 219)
     {
         //Order of parameters: A_i,L_i,A_h,invtau,c_1
         //The numbering is:	0   1   2    3     4
@@ -1531,7 +1548,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[3] = 60.0*v_0*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
         vals[4] = (1e-3 / 3600.0) * A_h;		//c_1
     }
-    if (type == 250)
+    if (model_uid == 250)
     {
         //Order of parameters: A_i,L_i,A_h,h_r,invtau,k_2,k_I,c_1,c_2
         //The numbering is:	0   1   2   3    4     5   6   7   8
@@ -1554,7 +1571,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[7] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[8] = A_h / 60.0;	//  c_2
     }
-    else if (type == 252 || type == 253)
+    else if (model_uid == 252 || model_uid == 253)
     {
         //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
         //The numbering is:	0   1   2    3     4   5   6   7 
@@ -1577,7 +1594,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[6] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[7] = A_h / 60.0;	//  c_2
     }
-    else if (type == 254)
+    else if (model_uid == 254)
     {
         //Order of parameters: A_i,L_i,A_h,invtau,k_2,k_i,c_1,c_2
         //The numbering is:	0   1   2    3     4   5   6   7 
@@ -1600,7 +1617,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[6] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[7] = A_h / 60.0;	//  c_2
     }
-    else if (type == 255)
+    else if (model_uid == 255)
     {
         //Order of parameters: A_i,L_i,A_h,v_h,k_3,k_I_factor,h_b,S_L,A,B,exponent | invtau,k_2,k_i,c_1,c_2
         //The numbering is:	0   1   2   3   4      5       6   7  8 9   10        11    12  13  14  15
@@ -1623,7 +1640,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[14] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[15] = A_h / 60.0;	//  c_2
     }
-    else if (type == 260)
+    else if (model_uid == 260)
     {
         //Order of parameters: A_i,L_i,A_h | invtau,c_1,c_2
         //The numbering is:	0   1   2  |    3    4   5 
@@ -1642,7 +1659,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[4] = (0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[5] = A_h / 60.0;	//  c_2
     }
-    else if (type == 261)
+    else if (model_uid == 261)
     {
         //Order of parameters: A_i,L_i,A_h,S_h,T_L,h_b,k_D,k_dry,k_i | invtau,c_1,c_2,c_3
         //The numbering is:	0   1   2   3   4   5   6   7     8  |   9     10  11  12
@@ -1663,7 +1680,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[11] = A_h / 60.0;	//  c_2
         vals[12] = pow(S_h, 0.5)*L_i / A_h;	//c_3
     }
-    else if (type == 262)
+    else if (model_uid == 262)
     {
         //Order of parameters: A_i,L_i,A_h,S_h,T_L,eta,h_b,k_D,k_dry,k_i | invtau,c_1,c_2,k_2
         //The numbering is:	0   1   2   3   4   5   6   7   8     9  |   10    11  12  13
@@ -1685,7 +1702,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         vals[12] = A_h / 60.0;	//  c_2
         vals[13] = pow(S_h, 0.5)*L_i / (A_h*eta);	//k_2
     }
-    else if (type == 300 || type == 301)
+    else if (model_uid == 300 || model_uid == 301)
     {
         /*
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
@@ -1716,7 +1733,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         iparams[0] = link_i->location;
         */
     }
-    else if (type == 315)
+    else if (model_uid == 315)
     {
         /*
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
@@ -1752,7 +1769,7 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
         iparams[0] = link_i->location;
         */
     }
-    else if (type == 2000)
+    else if (model_uid == 2000)
     {
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
@@ -1788,20 +1805,29 @@ void Precalculations(Link* link_i, double *global_params, double *params, unsign
 //VEC* params:		The parameters for this link. DEM, dam parameters, and precalculations are available.
 //unsigned int dam:	1 if a dam is present at this link, 0 if no dam is present.
 //VEC* y_0:		The initial condition vector. Store the initial data here.
-//unsigned int type:	The index of the model.
+//unsigned int model_uid:	The index of the model.
 //Returns the state of the solution (use 0 if state discontinuities are not a concern). !!!! Should the return value be an int? !!!!
-int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int dam, VEC y_0, unsigned int type, unsigned int diff_start, unsigned int no_init_start, void* user, void* external)
+int ReadInitData(
+    double *global_params, unsigned int num_global_params,
+    double *params, unsigned int num_params,
+    QVSData* qvs,
+    unsigned short int dam,
+    double *y_0, unsigned int dim,
+    unsigned int model_uid,
+    unsigned int diff_start, unsigned int no_init_start,
+    void* user,
+    void* external)
 {
     unsigned int state;
 
-    if (type == 19)
+    if (model_uid == 19)
     {
-        //For type 21, just set the state
+        //For model_uid 21, just set the state
         return LinearHillslope_Evap_Check(y_0, params, global_params, qvs, 0);
     }
-    else if (type == 21)
+    else if (model_uid == 21)
     {
-        //For type 21, only the storage (S or y_0[1]) has been set.
+        //For model_uid 21, only the storage (S or y_0[1]) has been set.
         //Order of parameters: A_i,L_i,A_h,k2,k3,invtau,orifice_area,H_spill,H_max,S_max,alpha,orifice_diam,c_1,c_2,L_spill
         //The numbering is:	0   1   2  3  4    5	       6      7       8     9	  10	    11       12  13  14
         //Order of global_params: v_r,lambda_1,lambda_2,RC,S_0,v_h
@@ -1812,13 +1838,13 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[2] = RC * S_0 * A_h;
         y_0[3] = (1.0 - RC) * S_0 * A_h;
 
-        state = dam_check(y_0, global_params, params, qvs, dam);
-        dam_q(y_0, global_params, params, qvs, state, user, y_0);
+        state = dam_check(y_0, dim, global_params, num_global_params, params, num_params, qvs, dam, user);
+        dam_q(y_0, dim, global_params, params, qvs, state, user, y_0);
         return state;
     }
-    else if (type == 22)
+    else if (model_uid == 22)
     {
-        //For type 22, only the storage (S or y_0[1]) has been set.
+        //For model_uid 22, only the storage (S or y_0[1]) has been set.
         //Order of parameters: A_i,L_i,A_h,RC,v_h,v_r,k2,k3,invtau,orifice_area,H_spill,H_max,S_max,alpha,orifice_diam,c_1,c_2,L_spill
         //The numbering is:	0   1   2  3   4   5   6  7   8          9	  10	  11   12     13      14        15  16   17
         //Order of global_params: lambda_1,lambda_2,S_0
@@ -1830,13 +1856,13 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[2] = RC * S_0 * A_h;
         y_0[3] = (1.0 - RC) * S_0 * A_h;
 
-        state = dam_check2(y_0, global_params, params, qvs, dam);
-        dam_q2(y_0, global_params, params, qvs, state, user, y_0);
+        state = dam_check2(y_0, dim, global_params, num_global_params, params, num_params, qvs, dam, user);
+        dam_q2(y_0, dim, global_params, params, qvs, state, user, y_0);
         return state;
     }
-    else if (type == 23)
+    else if (model_uid == 23)
     {
-        //For type 23, only the storage (S or y_0[1]) has been set.
+        //For model_uid 23, only the storage (S or y_0[1]) has been set.
         //Order of parameters: A_i,L_i,A_h,RC,v_h,v_r,k2,k3,invtau,orifice_area,H_spill,H_max,S_max,alpha,orifice_diam,c_1,c_2,L_spill
         //The numbering is:	0   1   2  3   4   5   6  7   8          9	  10	  11   12     13      14        15  16   17
         //Order of global_params: lambda_1,lambda_2,S_0
@@ -1848,13 +1874,13 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[2] = RC * S_0 * A_h;
         y_0[3] = (1.0 - RC) * S_0 * A_h;
 
-        state = dam_check3(y_0, global_params, params, qvs, dam);
-        dam_q3(y_0, global_params, params, qvs, state, user, y_0);
+        state = dam_check3(y_0, dim, global_params, num_global_params, params, num_params, qvs, dam, user);
+        dam_q3(y_0, dim, global_params, params, qvs, state, user, y_0);
         return state;
     }
-    else if (type == 40)
+    else if (model_uid == 40)
     {
-        //For type 40, only the storage (S or y_0[1]) has been set.
+        //For model_uid 40, only the storage (S or y_0[1]) has been set.
         //Order of parameters: A_i,L_i,A_h,RC,v_h,v_r,k2,k3,invtau
         //The numbering is:	0   1   2  3   4   5   6  7   8
         //Order of global_params: lambda_1,lambda_2,S_0,v_g
@@ -1866,12 +1892,12 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[2] = RC * S_0 * A_h;
         y_0[3] = (1.0 - RC) * S_0 * A_h;
 
-        state = dam_check_qvs(y_0, global_params, params, qvs, dam);
-        dam_q_qvs(y_0, global_params, params, qvs, state, user, y_0);
+        state = dam_check_qvs(y_0, dim, global_params, num_global_params, params, num_params, qvs, dam, user);
+        dam_q_qvs(y_0, dim, global_params, params, qvs, state, user, y_0);
 
         return state;
     }
-    else if (type == 30)
+    else if (model_uid == 30)
     {
         //y_i has q (y_i[0]), s_p (y_i[1]), h_w (y_i[2]), theta (y_i[3])
         //Order of parameters: L_h,A_h,A_up,H_b,H_h,max_inf_rate,K_SAT,S_H,n_vh, b, c, d,K_Q,V_T,c_1,c_2,c_3,c_4,c_5,c_6,c_7
@@ -1893,16 +1919,16 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         */
         return 0;
     }
-    else if (type == 191)
+    else if (model_uid == 191)
     {
-        //For this type, the extra states need to be set (3,4,5)
+        //For this model_uid, the extra states need to be set (3,4,5)
         y_0[3] = 0.0;
         y_0[4] = 0.0;
         y_0[5] = y_0[0];	//I'm not really sure what to use here...
     }
-    else if (type == 200)
+    else if (model_uid == 200)
     {
-        //For type 200, only the discharge has been set. Need to set the storage.
+        //For model_uid 200, only the discharge has been set. Need to set the storage.
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
         //Order of global_params: v_0,lambda_1,lambda_2,Q_r,A_r,RC,u_0
@@ -1910,14 +1936,14 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[1] = params[0] / (global_params[6] + global_params[0]) * y_0[0];
         return 0;
     }
-    else if (type == 254)
+    else if (model_uid == 254)
     {
-        //For this type, the extra states need to be set (4,5,6)
+        //For this model_uid, the extra states need to be set (4,5,6)
         y_0[4] = 0.0;
         y_0[5] = 0.0;
         y_0[6] = y_0[0];
     }
-    else if (type == 255)
+    else if (model_uid == 255)
     {
         //Discharges are initially read into y_0[1] when no dam is present. So y_0[1] is copied to y_0[0],
         //then the corresponding storage is moved into y_0[1]. When a dam is present, y_0[1] will have the storage.
@@ -1960,7 +1986,7 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
             return -1;
         }
     }
-    else if (type == 261)
+    else if (model_uid == 261)
     {
         //Discharges are initially read into y_0[1] when no dam is present. So y_0[1] is copied to y_0[0],
         //then the corresponding storage is moved into y_0[1]. When a dam is present, y_0[1] will have the storage.
@@ -1979,8 +2005,8 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
 
         if (dam)
         {
-            int state = dam_check_qvs(y_0, global_params, params, qvs, dam);
-            dam_TopLayerNonlinearExpSoilvel(y_0, global_params, params, qvs, state, user, y_0);
+            int state = dam_check_qvs(y_0, dim, global_params, num_global_params, params, num_params, qvs, dam, user);
+            dam_TopLayerNonlinearExpSoilvel(y_0, dim, global_params, params, qvs, state, user, y_0);
             return state;
         }
         else
@@ -1993,7 +2019,7 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
             return -1;
         }
     }
-    else if (type == 262)
+    else if (model_uid == 262)
     {
         //Discharges are initially read into y_0[1] when no dam is present. So y_0[1] is copied to y_0[0],
         //then the corresponding storage is moved into y_0[1]. When a dam is present, y_0[1] will have the storage.
@@ -2039,31 +2065,31 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
             return -1;
         }
     }
-    else if (type == 300)
+    else if (model_uid == 300)
     {
         /*
-        //For this type, all initial conditions for variational equation must be set here.
+        //For this model_uid, all initial conditions for variational equation must be set here.
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
         //Order of global_params: v_r,lambda_1,lambda_2,Q_r,A_r,RC
         //The numbering is:        0      1        2     3   4   5
         unsigned int i;
-        unsigned int offset = type - 299;
+        unsigned int offset = model_uid - 299;
         for(i=offset;i<y_0.dim;i++)	y_0[i] = 0.0;
         y_0[iparams[0] + offset] = 1.0;
         */
         return 0;
     }
-    else if (type == 301)
+    else if (model_uid == 301)
     {
         /*
-        //For this type, all initial conditions for variational equation must be set here.
+        //For this model_uid, all initial conditions for variational equation must be set here.
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
         //Order of global_params: v_r,lambda_1,lambda_2,Q_r,A_r,RC
         //The numbering is:        0      1        2     3   4   5
         unsigned int i;
-        unsigned int offset = type - 299;
+        unsigned int offset = model_uid - 299;
 
         //New
         y_0[offset] = 1.0;
@@ -2073,9 +2099,9 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         */
         return 0;
     }
-    else if (type == 315)
+    else if (model_uid == 315)
     {
-        //For this type, all initial conditions for variational equation must be set here.
+        //For this model_uid, all initial conditions for variational equation must be set here.
         //Order of parameters: L_i,A_h,A_i,h_b,h_H,max_inf_rate,K_sat,S_h,eta,b_H,c_H,d_H,invtau,epsilon,c_1,c_2,c_3,c_4,c_5,c_6
         //The numbering is:     0   1   2   3   4       5         6    7   8   9   10  11  12    13      14  15  16  17  18  19
         //Order of global_params: v_r,lambda_1,lambda_2,Q_r,A_r,RC
@@ -2087,7 +2113,8 @@ int ReadInitData(VEC global_params, VEC params, QVSData* qvs, unsigned short int
         y_0[offset] = 1.0;
         y_0[offset + 1] = 1.0;
         y_0[offset + 2] = 0.0;
-        for (i = offset + 3; i<y_0.dim; i++)	y_0[i] = 0.0;
+        for (i = offset + 3; i < dim; i++)
+            y_0[i] = 0.0;
 
         return 0;
     }

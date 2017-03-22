@@ -5,7 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs.h"
+#include <structs.h>
 
 //Merge sort routines
 void merge_sort(Link *sys, unsigned int size, unsigned int idx);

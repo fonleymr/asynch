@@ -5,7 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs.h"
+#include <structs.h>
 
 extern int my_rank;
 extern int np;

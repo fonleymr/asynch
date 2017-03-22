@@ -29,22 +29,23 @@
 #include <hdf5_hl.h>
 #endif
 
-#include "data_types.h"
-#include "rkmethods.h"
-#include "rksteppers.h"
-#include "partition.h"
-#include "db.h"
-#include "comm.h"
-#include "io.h"
-#include "forcings.h"
-#include "forcings_io.h"
-#include "modeloutputs.h"
-//#include "builtin.h"
-//#include "vector_mpi.h"
+#include <data_types.h>
+#include <rkmethods.h>
+#include <rksteppers.h>
+#include <partition.h>
+#include <db.h>
+#include <comm.h>
+#include <io.h>
+#include <forcings.h>
+#include <forcings_io.h>
+#include <outputs.h>
+//#include <builtin.h>
+//#include <vector_mpi.h>
 #include <minmax.h>
 #include <blas.h>
+#include <models/definitions.h>
 
-#include "riversys.h"
+#include <riversys.h>
 
 
 //Read topo data and build the network.
@@ -419,10 +420,10 @@ int Load_Local_Parameters(
 
     //Allocate space
     db_link_id = (unsigned int*)malloc(N * sizeof(unsigned int));
-    db_params_array = (double*)malloc(N * model->num_disk_params * sizeof(double));
+    db_params_array = (double*)malloc(N * globals->num_disk_params * sizeof(double));
     db_params = (double**)malloc(N * sizeof(double*));
     for (unsigned int i = 0; i < N; i++)
-        db_params[i] = &(db_params_array[i * model->num_disk_params]);
+        db_params[i] = &(db_params_array[i * globals->num_disk_params]);
 
     //Read parameters
     if (my_rank == 0)
@@ -453,7 +454,7 @@ int Load_Local_Parameters(
             for (unsigned int i = 0; i < N; i++)
             {
                 fscanf(paramdata, "%u", &(db_link_id[i]));
-                for (unsigned int j = 0; j < model->num_disk_params; j++)
+                for (unsigned int j = 0; j < globals->num_disk_params; j++)
                 {
                     if (fscanf(paramdata, "%lf", &(db_params[i][j])) == 0)
                     {
@@ -510,7 +511,7 @@ int Load_Local_Parameters(
             for (unsigned int i = 0; i < N; i++)
                 db_link_id[i] = atoi(PQgetvalue(res, i, 0));
             for (unsigned int i = 0; i < N; i++)
-                for (unsigned int j = 0; j < model->num_disk_params; j++)
+                for (unsigned int j = 0; j < globals->num_disk_params; j++)
                     db_params[i][j] = atof(PQgetvalue(res, i, 1 + j));
 
             //Cleanup
@@ -527,7 +528,7 @@ int Load_Local_Parameters(
 
     //Broadcast data
     MPI_Bcast(db_link_id, N, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-    MPI_Bcast(db_params_array, N * model->num_disk_params, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(db_params_array, N * globals->num_disk_params, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     for (unsigned int i = 0; i < N; i++)
     {
@@ -541,15 +542,15 @@ int Load_Local_Parameters(
         {
             if (assignments[curr_loc] == my_rank || getting[curr_loc])
             {
-                system[curr_loc].num_params = model->num_params;
-                system[curr_loc].params = malloc(model->num_params * sizeof(double));
-                for (unsigned int j = 0; j < model->num_disk_params; j++)
+                system[curr_loc].num_params = globals->num_params;
+                system[curr_loc].params = malloc(globals->num_params * sizeof(double));
+                for (unsigned int j = 0; j < globals->num_disk_params; j++)
                     system[curr_loc].params[j] = db_params[i][j];
 
-                //if (model)
+                if (model)
                     model->convert(system[curr_loc].params, globals->model_uid, external);
-                //else
-                //    ConvertParams(system[curr_loc].params, globals->model_uid, external);
+                else
+                    ConvertParams(system[curr_loc].params, globals->model_uid, external);
             }
         }
     }
@@ -829,16 +830,16 @@ int Initialize_Model(
     {
         if (assignments[i] == my_rank || getting[i])
         {
-            //if (model)
-            //{
-            model->routines(&system[i], globals->model_uid, system[i].method->exp_imp, system[i].has_dam, external);
-            model->precalculations(&system[i], globals->global_params, system[i].params, model->num_disk_params, model->num_params, system[i].has_dam, globals->model_uid, external);
-            //}
-            //else
-            //{
-            //    InitRoutines(&system[i], globals->model_uid, system[i].method->exp_imp, system[i].has_dam, external);
-            //    Precalculations(&system[i], globals->global_params, system[i].params, model->num_disk_params, model->num_params, system[i].has_dam, globals->model_uid, external);
-            //}
+            if (model)
+            {
+                model->routines(&system[i], globals->model_uid, system[i].method->exp_imp, system[i].has_dam, external);
+                model->precalculations(&system[i], globals->global_params, system[i].params, system[i].has_dam, external);
+            }
+            else
+            {
+                InitRoutines(&system[i], globals->model_uid, system[i].method->exp_imp, system[i].has_dam, external);
+                Precalculations(&system[i], globals->global_params, globals->num_global_params, system[i].params, globals->num_disk_params, globals->num_params, system[i].has_dam, globals->model_uid, external);
+            }
 
             max_dim = (max_dim < system[i].dim) ? system[i].dim : max_dim;
 
@@ -1174,10 +1175,13 @@ static int Load_Initial_Conditions_Uini(
             for (unsigned int j = diff_start; j < no_ini_start; j++)
                 y_0[j] = y_0_backup[j - diff_start];
 
-            if (model->initialize_eqs)
+            if (model && model->initialize_eqs)
                 system[i].state = model->initialize_eqs(globals->global_params, system[i].params, y_0, system[i].user);
-            //else
-            //    system[i].state = ReadInitData(globals->global_params, system[i].params, system[i].qvs, system[i].is_dam, y_0, globals->model_uid, diff_start, no_ini_start, system[i].user, external);
+            else
+                system[i].state = ReadInitData(
+                    globals->global_params, globals->num_global_params,
+                    system[i].params, globals->num_params,
+                    system[i].qvs, system[i].has_dam, y_0, system[i].dim, globals->model_uid, diff_start, no_ini_start, system[i].user, external);
             Init_List(&system[i].my->list, globals->t_0, y_0, system[i].dim, system[i].num_dense, system[i].method->num_stages, globals->iter_limit);
             system[i].my->list.head->state = system[i].state;
             system[i].last_t = globals->t_0;
@@ -1274,7 +1278,7 @@ static int Load_Initial_Conditions_Rec(
             if (assignments[loc] == my_rank || getting[loc])
             {
                 if (model->check_state)
-                    system[loc].state = model->check_state(y_0, system[loc].dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, system[loc].dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, system[loc].dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1325,7 +1329,7 @@ static int Load_Initial_Conditions_Rec(
                 MPI_Recv(y_0, dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (model->check_state)
-                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1405,7 +1409,7 @@ static int Load_Initial_Conditions_Dbc(
             if (assignments[loc] == my_rank || getting[loc])
             {
                 if (model->check_state != NULL)
-                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1452,7 +1456,7 @@ static int Load_Initial_Conditions_Dbc(
                 MPI_Recv(y_0, dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (model->check_state != NULL)
-                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1563,7 +1567,7 @@ static int Load_Initial_Conditions_H5(
             if (assignments[loc] == my_rank || getting[loc])
             {
                 if (model->check_state)
-                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1616,7 +1620,7 @@ static int Load_Initial_Conditions_H5(
                 MPI_Recv(y_0, dim, MPI_DOUBLE, 0, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 if (model->check_state)
-                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].user);
+                    system[loc].state = model->check_state(y_0, dim, globals->global_params, globals->num_global_params, system[loc].params, system[loc].num_params, system[loc].qvs, system[loc].state, system[loc].user);
                 Init_List(&system[loc].my->list, globals->t_0, y_0, dim, system[loc].num_dense, system[loc].method->num_stages, globals->iter_limit);
                 system[loc].my->list.head->state = system[loc].state;
                 system[loc].last_t = globals->t_0;
@@ -1981,14 +1985,14 @@ int Load_Forcings(
                 fclose(forcingfile);
 
                 //Add path from index file?
-                if (tempspace1[0] == '/')	//Use absolute path
+                //if (tempspace1[0] == '/')	//Use absolute path
                     strcpy(forcings[l].fileident, tempspace1);
-                else		//Relative path
-                    strcpy(&(forcings[l].fileident[i]), tempspace1);
-                if (tempspace2[0] == '/')	//Use absolute path
+                //else		//Relative path
+                //    strcpy(&(forcings[l].fileident[i]), tempspace1);
+                //if (tempspace2[0] == '/')	//Use absolute path
                     strcpy(forcings[l].lookup_filename, tempspace2);
-                else		//Relative path
-                    strcpy(&(forcings[l].lookup_filename[i]), tempspace2);
+                //else		//Relative path
+                //    strcpy(&(forcings[l].lookup_filename[i]), tempspace2);
 
                 //Process the lookup file
                 forcingfile = fopen(forcings[l].lookup_filename, "r");
@@ -2352,7 +2356,7 @@ int Load_Dams(
     double* buffer = NULL;
 
     //Read is_dam file
-    if (globals->uses_dam && globals->dam_flag == 1)	//.is_dam file
+    if (globals->uses_dam && globals->dam_flag == 1)	//.dam file
     {
         //VEC* buffer;
         size = globals->dam_params_size - the_model.num_params;
@@ -2795,14 +2799,17 @@ int CalculateInitialStepSizes(
     unsigned int i, j;
 
     for (i = 0; i < my_N; i++)
+    {
         my_sys[i]->h = InitialStepSize(globals->t_0, my_sys[i], globals, workspace);
+        assert(my_sys[i]->h > 0.0);
+    }
+
     if (watch_forcings)
     {
         for (i = 0; i < my_N; i++)
         {
             for (j = 0; j < globals->num_forcings; j++)
-                my_sys[i]->h = min(my_sys[i]->h, my_sys[i]->my->forcing_change_times[j] - my_sys[i]->last_t);
-                assert(my_sys[i]->h > 0.0);
+                my_sys[i]->h = min(my_sys[i]->h, my_sys[i]->my->forcing_change_times[j] - my_sys[i]->last_t);                
         }
     }
 
@@ -2818,8 +2825,6 @@ int BuildSaveLists(
     unsigned int* assignments, const Lookup * const id_to_loc,
     GlobalVars* globals, unsigned int** save_list, unsigned int* save_size, unsigned int* my_save_size, unsigned int** peaksave_list, unsigned int* peaksave_size, unsigned int* my_peaksave_size, ConnData* db_connections)
 {
-    AsynchModel *the_model = globals->model;
-
     unsigned int j, k;
     Link* current;
 
@@ -2860,7 +2865,7 @@ int BuildSaveLists(
                 if (globals->print_time > 0.0)
                     current->print_time = globals->print_time;
                 else
-                    current->print_time = sqrt(current->params[the_model->area_idx] * 0.1);
+                    current->print_time = sqrt(current->params[globals->area_idx] * 0.1);
             }
         }
     }

@@ -9,10 +9,10 @@
 #include <math.h>
 //#include <string.h>
 
-//#include "io.h"
-#include "minmax.h"
-#include "rkmethods.h"
-#include "blas.h"
+//#include <io.h>
+#include <minmax.h>
+#include <rkmethods.h>
+#include <blas.h>
 
 
 //Copies contents of the vectors full_k with dim entries into the vectors k with num_dense entries.
@@ -31,8 +31,6 @@ void store_k(const double * const full_k, unsigned int num_dof, double *k, unsig
 
 double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals, Workspace* workspace)
 {
-    AsynchModel *the_model = globals->model;
-
     unsigned int start = link_i->diff_start;
     double *y_0 = link_i->my->list.tail->y_approx;
     double t_0 = link_i->my->list.tail->t;
@@ -87,22 +85,20 @@ double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals,
                 curr_parent_approx[idx] = curr_node->y_approx[idx];
 
                 for (unsigned int l = 0; l < num_stages; l++)
-                    //v_set(parent_approx, idx, v_at(parent_approx, idx)
-                    //    + timediff * v_at(curr_parent->method->b_theta, l) * v2_at(curr_node->next->k, l, m));
                     curr_parent_approx[idx] += timediff * curr_parent->method->b_theta[l] * curr_node->next->k[l * num_stages + m];
             }
-            the_model->check_consistency(curr_parent_approx, curr_parent->dim, curr_parent->params, the_model->num_params, globals->global_params, the_model->num_global_params, curr_parent->user);
+            link_i->check_consistency(curr_parent_approx, curr_parent->dim, globals->global_params, globals->num_global_params, curr_parent->params, link_i->num_params, curr_parent->user);
 
-            if (the_model->algebraic)
-                the_model->algebraic(curr_parent_approx, curr_parent->dim, globals->global_params, curr_parent->params, curr_parent->user, curr_parent_approx);
+            if (link_i->algebraic)
+                link_i->algebraic(curr_parent_approx, curr_parent->dim, globals->global_params, curr_parent->params, curr_parent->qvs, curr_parent->state, curr_parent->user, curr_parent_approx);
         }
     }
 
     //Step a
     //d0 = vector_norminf(y0,start);
-    d0 = nrminf(y_0, SC, start, link_i->dim);
-    the_model->differential(t_0, y_0, link_i->dim, parents_approx, link_i->num_parents, globals->global_params, link_i->params, link_i->my->forcing_values, link_i->user, fy0);
-    d1 = nrminf(fy0, SC, start, link_i->dim);
+    d0 = nrminf2(y_0, SC, start, link_i->dim);
+    link_i->differential(t_0, y_0, link_i->dim, parents_approx, link_i->num_parents, globals->global_params, link_i->params, link_i->my->forcing_values, link_i->qvs, link_i->state, link_i->user, fy0);
+    d1 = nrminf2(fy0, SC, start, link_i->dim);
 
     //Step b
     if (d0 < 1e-5 || d1 < 1e-5)
@@ -114,12 +110,12 @@ double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals,
     //Note: This assumes the parents discharge is the same. It also assume no change in rain or state
     dcopy(y_0, y_1, 0, link_i->dim);
     daxpy(h0, fy0, y_1, start, link_i->dim);
-    the_model->check_consistency(y_1, link_i->dim, link_i->params, the_model->num_params, globals->global_params, the_model->num_global_params, link_i->user);
-    the_model->differential(t_0 + h0, y_1, link_i->dim, parents_approx, link_i->num_parents, globals->global_params, link_i->params, link_i->my->forcing_values, link_i->user, fy1);
+    link_i->check_consistency(y_1, link_i->dim, globals->global_params, globals->num_global_params, link_i->params, link_i->num_params, link_i->user);
+    link_i->differential(t_0 + h0, y_1, link_i->dim, parents_approx, link_i->num_parents, globals->global_params, link_i->params, link_i->my->forcing_values, link_i->qvs, link_i->state, link_i->user, fy1);
 
     //Step d
     dsub(fy1, fy0, fy1, start, link_i->dim);
-    d2 = nrminf(fy1, SC, start, link_i->dim);
+    d2 = nrminf2(fy1, SC, start, link_i->dim);
 
     //Step e
     largest = max(d1, d2);

@@ -5,7 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "structs_fwd.h"
+#include <structs_fwd.h>
 
 
 extern int np;

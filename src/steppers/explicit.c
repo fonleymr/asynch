@@ -20,10 +20,8 @@
 int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool print_flag, FILE* outputfile, ConnData* conninfo, Forcing* forcings, Workspace* workspace)
 {
     unsigned int idx;
-    AsynchModel *model = globals->model;
     
     RKSolutionNode *curr_node[ASYNCH_LINK_MAX_PARENTS], *node, *new_node;
-    Link* currentp;
     double t_needed, current_theta;
 
     //Some variables to make things easier to read
@@ -47,57 +45,43 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     double **temp_k = workspace->temp_k_slices;
 
     //Get the approximate solutions from each parent
-#pragma loop_count min(0), max(8)
     for (unsigned int i = 0; i < link_i->num_parents; i++)
     {
-        currentp = link_i->parents[i];
-        curr_node[i] = currentp->my->list.head;
-#pragma loop_count min(5), max(7)
+        Link* curr_parent = link_i->parents[i];
+        curr_node[i] = curr_parent->my->list.head;
         for (unsigned int j = 0; j < num_stages; j++)
         {
             //Find the needed value of t and corresponding node for y_p
             //Assuming everything needed is already calculated
             //This assumes c_s is the biggest. If not, one extra step may not get freed.
-            t_needed = min(t + c[j] * h, currentp->last_t);
+            t_needed = min(t + c[j] * h, curr_parent->last_t);
 
             //Find the corresponding theta value and approximate solution
-            //while(t_needed > curr_node[i]->t && ( fabs(curr_node[i]->t) < 1e-12 || fabs(t_needed - curr_node[i]->t)/curr_node[i]->t > 1e-12) )
             while (t_needed > curr_node[i]->t)
                 curr_node[i] = curr_node[i]->next;
-            if (curr_node[i] != currentp->my->list.head)
+            if (curr_node[i] != curr_parent->my->list.head)
                 curr_node[i] = curr_node[i]->prev;
 
             double dt = curr_node[i]->next->t - curr_node[i]->t;
             current_theta = (t_needed - curr_node[i]->t) / dt;
-            currentp->method->dense_b(current_theta, currentp->method->b_theta);
+            curr_parent->method->dense_b(current_theta, curr_parent->method->b_theta);
 
             //[num_stages][max_parents][dim]
             double *parent_approx = workspace->stages_parents_approx + j * globals->max_parents * dim + i * dim;
 
-            //for (unsigned int m = 0; m < currentp->num_dense; m++)
-            //{
-            //    idx = currentp->dense_indices[m];
-            //    double approx = v_at(curr_node[i]->y_approx, idx);
-            //    for (unsigned int l = 0; l < currentp->method->s; l++)
-            //        approx += dt * v_at(currentp->method->b_theta, l) * v2_at(curr_node[i]->next->k, l, m);
-
-            //    v_set(parent_approx, idx, approx);
-            //}
-#pragma loop_count max(1)
-            for (unsigned int m = 0; m < currentp->num_dense; m++)
+            for (unsigned int m = 0; m < curr_parent->num_dense; m++)
             {
-                idx = currentp->dense_indices[m];
+                idx = curr_parent->dense_indices[m];
                 double approx = curr_node[i]->y_approx[idx];
-                //for (unsigned int l = 0; l < currentp->method->num_stages; l++)
-#pragma loop_count min(5), max(7)
-                for (int l = 0; l < currentp->method->num_stages; l++)
-                    approx += dt * currentp->method->b_theta[l] *
-                        curr_node[i]->next->k[l * currentp->num_dense + m];
+
+                for (int l = 0; l < curr_parent->method->num_stages; l++)
+                    approx += dt * curr_parent->method->b_theta[l] *
+                        curr_node[i]->next->k[l * curr_parent->num_dense + m];
 
                 parent_approx[idx] = approx;
             }
 
-            model->check_consistency(parent_approx, currentp->dim, currentp->params, model->num_params, globals->global_params, model->num_global_params, currentp->user);
+            link_i->check_consistency(parent_approx, curr_parent->dim, globals->global_params, globals->num_global_params, curr_parent->params, link_i->num_params, curr_parent->user);
         }
     }
 
@@ -108,48 +92,34 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     new_node->t = t + h;
     //k = new_node->k;
     double *new_y = new_node->y_approx;
-    /*
-    int stopper = 0;
-    if(link_i->ID == 0 && link_i->dim > 7)
-    {
-    printf("************\n");
-    printf("t = %e\n",t);
-    Print_Vector(y_0);
-    stopper = 1;
-    //Print_Vector(new_y);
-    printf("************\n");
-    }
-    */
+
     //Compute the k's
-#pragma loop_count min(5), max(7)
     for (unsigned int i = 0; i < num_stages; i++)
     {
         //v_copy_n(y_0, sum, link_i->dim);
         memcpy(sum, y_0, link_i->dim * sizeof(double));
         for (unsigned int j = 0; j < i; j++)
         {
-            //daxpy_u(h * v2_at(A, i, j), v2_slice(temp_k, j), sum, 0, link_i->dim);
-            //daxpy_u(h * v2_at(A, i, j), temp_k[j], sum, 0, link_i->dim);
-
             double alpha = h * A[i * num_stages + j];
             daxpy(alpha, temp_k[j], sum, 0, link_i->dim);
         }
 
-        //link_i->check_consistency(sum, params, globals->global_params);
-        model->check_consistency(sum, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
+        link_i->check_consistency(sum, link_i->dim, globals->global_params, globals->num_global_params, link_i->params, link_i->num_params, link_i->user);
 
         //[num_stages][max_parents][dim]
         double *y_p = workspace->stages_parents_approx + i * globals->max_parents * link_i->dim;
 
         double dt = c[i] * h;
 
-        model->differential(
+        link_i->differential(
             t + dt,
             sum, link_i->dim,
             y_p, link_i->num_parents,
             globals->global_params,
             link_i->params,
-            link_i->my->forcing_values,            
+            link_i->my->forcing_values,
+            link_i->qvs,
+            link_i->state,
             link_i->user,
             temp_k[i]);
     }
@@ -157,23 +127,14 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     //Build the solution
     dcopy(y_0, new_y, 0, link_i->dim);
     for (unsigned int i = 0; i < num_stages; i++)
-        //daxpy_u(h*v_at(b, i), v2_slice(temp_k, i), new_y, 0, link_i->dim);
         daxpy(h * b[i], temp_k[i], new_y, 0, link_i->dim);
 
-    model->check_consistency(new_y, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
-    new_node->state = link_i->state;
+    // Check constistency
+    link_i->check_consistency(new_y, link_i->dim, globals->global_params, globals->num_global_params, link_i->params, link_i->num_params, link_i->user);
 
-    /*
-    if(stopper)
-    {
-    printf("************\n");
-    printf("t = %e\n",t);
-    //Print_Vector(y_0);
-    Print_Vector(new_y);
-    printf("************\n");
-    getchar();
-    }
-    */
+    new_node->state = link_i->state;
+    
+
     //Error estimation and step size selection
 
     //Check the error of y_1 (in inf norm) to determine if the step can be accepted
@@ -181,15 +142,13 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     dcopy(temp_k[0], sum, 0, link_i->dim);
     dscal(h * e[0], sum, 0, link_i->dim);
     for (unsigned int i = 1; i < num_stages; i++)
-        //daxpy_u(h*v_at(e, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
         daxpy(h * e[i], temp_k[i], sum, 0, link_i->dim);
 
     //Build SC_i
     for (unsigned int i = 0; i < dim; i++)
         temp[i] = max(fabs(new_y[i]), fabs(y_0[i])) * error->reltol[i] + error->abstol[i];
 
-    //err_1 = norm_inf(sum,temp,meth->e_order_ratio,0);
-    err_1 = nrminf(sum, temp, 0, link_i->dim);
+    err_1 = nrminf2(sum, temp, 0, link_i->dim);
     double value_1 = pow(1.0 / err_1, 1.0 / meth->e_order);
 
     //Check the dense error (in inf norm) to determine if the step can be accepted
@@ -198,14 +157,12 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     dscal(h * d[0], sum, 0, link_i->dim);
 
     for (unsigned int i = 1; i < num_stages; i++)
-        //daxpy_u(h*v_at(d, i), v2_slice(temp_k, i), sum, 0, link_i->dim);
         daxpy(h * d[i], temp_k[i], sum, 0, link_i->dim);
 
     for (unsigned int i = 0; i < dim; i++)
         temp[i] = max(fabs(new_y[i]), fabs(y_0[i])) * error->reltol_dense[i] + error->abstol_dense[i];
 
-    //err_d = norm_inf(sum,temp,meth->d_order_ratio,0);
-    err_d = nrminf(sum, temp, 0, link_i->dim);
+    err_d = nrminf2(sum, temp, 0, link_i->dim);
     double value_d = pow(1.0 / err_d, 1.0 / meth->d_order);
 
     //Determine a new step size for the next step
@@ -213,76 +170,8 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
     double step_d = h * min(error->facmax, max(error->facmin, error->fac * value_d));
     link_i->h = min(step_1, step_d);
 
-
-    /*
-    if(err_1 < 1.0 && err_d < 1.0)
-    {
-    printf("Accepted time = %e new h = %e  %e %e\n",t+h,link_i->h,err_1,err_d);
-    Print_Vector(new_y);
-    }
-    else
-    {
-    printf("Rejected time = %e new h = %e  %e %e\n",t+h,link_i->h,err_1,err_d);
-    Print_Vector(new_y);
-    }
-    */
-
-    /*
-    //Try new error control
-    //This uses new idea to modify step size of the parents, not link_i
-    Link* child = link_i->child;
-    //Link* p;
-    double err_new = 0.0;
-    double step_new = step_1;
-    double sum_of_errors;
-    if(child != NULL)
-    {
-    //Works ok
-    //!!!! Assumes 1d problem !!!!
-    //for(i=0;i<dim;i++)	tempv_at(2, i) = 0.0;
-    sum_of_errors = 0.0;
-    for(i=0;i<child->num_parents;i++)	//Assumes one state is passed link to link
-    sum_of_errors += child->parents[i]->error_data->abstol_densv_at(e, 0);
-
-    Jx_simple_river(child->list->tail->y_approx,globals->global_params,child->params,temp);
-    sv_mlt((t+h - child->last_t)*sum_of_errors,temp,globals->diff_start);
-    //tempv_at(2, 0) *= (t+h - child->last_t) * Jx;
-
-    err_new = norm_inf(temp,error->abstol_dense,1.0,0);
-    double value_new = pow(1.0/(link_i->h * err_new),1.0/4.0);	//!!!! For Dormand & Prince !!!!
-    unsigned int maxorder = 4;	// !!!! Need loop !!!!
-    double largest = child->parents[0]->h;
-    for(i=1;i<child->num_parents;i++)
-    largest = max(largest,child->parents[i]->h);
-    step_new = largest * value_new;
-    //for(i=0;i<child->num_parents;i++)
-    //	child->parents[i]->h = min(child->parents[i]->h,step_new);
-    link_i->h = min(link_i->h,step_new);
-    }
-    */
-
-
-    //	if(err_1 < 1.0 && err_d < 1.0 && err_new < 1.0)
     if (err_1 < 1.0 && err_d < 1.0)
-        //	if(err_1 < 1.0)
     {
-        /*
-        //Try new error control
-        //This uses new idea to modify step size of the parents, not link_i
-        if(link_i->num_parents > 0)
-        {
-        double err_new = norm_inf(sum,error->abstol_dense,1.0,0);
-        double value_new = pow(1.0/(link_i->h * err_new),1.0/4.0);	//!!!! For Dormand & Prince !!!!
-        unsigned int maxorder = 4;	// !!!! Need loop !!!!
-        double smallest = link_i->parents[0]->h;
-        for(i=1;i<link_i->num_parents;i++)
-        smallest = min(smallest,link_i->parents[i]->h);
-        double newh = smallest * value_new * .9;
-        for(i=0;i<link_i->num_parents;i++)
-        link_i->parents[i]->h = min(link_i->parents[i]->h,newh);
-        }
-        */
-
         //Check if a discontinuity has been stepped on
         if (link_i->discont_count > 0 && (t + h) >= link_i->discont[link_i->discont_start])
         {
@@ -302,16 +191,6 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
             //while(t <= link_i->next_save && link_i->next_save <= link_i->last_t)
             while (t <= link_i->next_save && (link_i->next_save < link_i->last_t || fabs(link_i->next_save - link_i->last_t) / link_i->next_save < 1e-12))
             {
-                /*
-                //Don't write anything if using data assimilation and at a time when data is available
-                if(GlobalVars->assim_flag)
-                {
-                if( fabs(GlobalVars->maxtime - link_i->next_save) < 1e-13 )	break;
-                //double rounded = 1e-13*rint(1e13*(GlobalVars->maxtime - link_i->next_save));
-                //if(rounded < 1e-13 && -rounded < 1e-13)		break;
-                }
-                */
-
                 if (link_i->disk_iterations == link_i->expected_file_vals)
                 {
                     printf("[%i]: Warning: Too many steps computed for link id %u. Expected no more than %u. No more values will be stored for this link.\n", my_rank, link_i->ID, link_i->expected_file_vals);
@@ -331,8 +210,9 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
                     sum[idx] = approx;
                 }
 
-                model->check_consistency(sum, link_i->dim, link_i->params, model->num_params, globals->global_params, model->num_global_params, link_i->user);
+                link_i->check_consistency(sum, link_i->dim, globals->global_params, globals->num_global_params, link_i->params, link_i->num_params, link_i->user);
 
+                //Write to a file
                 WriteStep(globals->outputs, globals->num_outputs, outputfile, link_i->ID, link_i->next_save, sum, link_i->dim, &(link_i->pos_offset));
 
                 link_i->next_save += link_i->print_time;
@@ -411,12 +291,12 @@ int ExplicitRKSolver(Link* link_i, GlobalVars* globals, int* assignments, bool p
         //Free up parents' old data
         for (unsigned int i = 0; i < link_i->num_parents; i++)
         {
-            currentp = link_i->parents[i];
-            while (currentp->my->list.head != curr_node[i])
+            Link *curr_parent = link_i->parents[i];
+            while (curr_parent->my->list.head != curr_node[i])
             {
-                Remove_Head_Node(&currentp->my->list);
-                currentp->current_iterations--;
-                currentp->iters_removed++;
+                Remove_Head_Node(&curr_parent->my->list);
+                curr_parent->current_iterations--;
+                curr_parent->iters_removed++;
             }
         }
 

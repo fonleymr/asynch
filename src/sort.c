@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#include "sort.h"
+#include <sort.h>
 
 //Sorts a list of links by upstream area. Uses merge sort.
 //Link** array: The list of links to be sorted.

@@ -12,8 +12,8 @@
 #include <libpq-fe.h>
 #endif
 
-#include "comm.h"
-#include "minmax.h"
+#include <comm.h>
+#include <minmax.h>
 
 #if defined(HAVE_POSTGRESQL)
 

@@ -5,7 +5,7 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
-#include "system.h"
+#include <system.h>
 #include <stdlib.h>
 #include <stdio.h>
 

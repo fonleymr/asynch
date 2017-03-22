@@ -10,8 +10,8 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-#include "blas.h"
-#include "system.h"
+#include <blas.h>
+#include <system.h>
 
 //Frees link.
 //Link* link: link to be freed.

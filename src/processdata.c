@@ -34,7 +34,7 @@
 #endif
 
 #include <minmax.h>
-#include <modeloutputs.h>
+#include <outputs.h>
 #include <io.h>
 #include <processdata.h>
 #include <blas.h>

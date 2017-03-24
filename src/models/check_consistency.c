@@ -5,6 +5,7 @@
 #endif
 
 #include <assert.h>
+#include <stddef.h>
 
 #include <models/check_consistency.h>
 

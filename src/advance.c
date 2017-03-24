@@ -328,11 +328,10 @@ void Advance(
                                 (current->current_iterations)--;
                             }
                         }
-
-
-
                     }
                 }
+
+                assert(current->h > 0);
             }//endwhile
         }
 
@@ -353,7 +352,3 @@ void Advance(
     //Cleanup
     free(done);
 }
-
-
-
-

@@ -127,7 +127,7 @@ struct ErrorData
 ///
 struct RKSolutionNode
 {
-    double *k;              //!< Array of all k values at time t [num_stages][num_dense_dof]
+    double *k;              //!< Array of all k values at time t [num_stages][num_dense]
     double *y_approx;       //!< Approximate solution at time t [num_dof]
     double t;               //!< The time to which the data in this node corresponds
     struct RKSolutionNode* next;    //!< Next node in the linked list

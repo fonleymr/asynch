@@ -4,6 +4,7 @@
 #include <config_msvc.h>
 #endif
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -476,6 +477,8 @@ int Create_Rain_Data_Grid(
             for (i = 0; i < forcing->num_links_in_grid[cell]; i++)	//!!!! Assuming only links on this proc !!!!
             {
                 curr_idx = forcing->grid_to_linkid[cell][i];
+                assert(assignments[curr_idx] == my_rank);
+                
                 sys[curr_idx].my->forcing_data[forcing_idx].data[k].time = t_0 + k*increment;
                 sys[curr_idx].my->forcing_data[forcing_idx].data[k].value = forcing->intensities[cell];
             }

@@ -71,7 +71,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NOMINMAX;ASYNCH_WITH_HDF5;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;NOMINMAX;ASYNCH_WITH_HDF5;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(MSMPI_INC);$(MSMPI_INC)\x64;$(RootDir);$(RootDir)\src;$(RootDir)\third_party\zlib-1.2.8;$(RootDir)\third_party\postgresql-8.4.22-1\include;$(RootDir)\third_party\hdf5-1.8.18-win64\include</AdditionalIncludeDirectories>
     </ClCompile>

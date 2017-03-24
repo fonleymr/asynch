@@ -4,6 +4,8 @@
 #include <config_msvc.h>
 #endif
 
+#include <Windows.h>
+
 #include <assert.h>
 #include <math.h>
 #include <memory.h>
@@ -2063,10 +2065,9 @@ int Load_Forcings(
             forcings[l].intensities = (float*)malloc(forcings[l].num_cells * sizeof(float));
 
             //Remove from grid_to_linkid all links not on this proc
-            unsigned int drop;
             for (i = 0; i < forcings[l].num_cells; i++)
             {
-                drop = 0;
+                unsigned int drop = 0;
                 for (unsigned int j = 0; j < forcings[l].num_links_in_grid[i]; j++)
                 {
                     if (assignments[forcings[l].grid_to_linkid[i][j]] != my_rank)
@@ -2275,7 +2276,7 @@ int Load_Forcings(
                 fclose(forcingfile);
             }
 
-            MPI_Bcast(buffer, num_months, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast(buffer, num_months, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
             //Create a global forcing object
             forcings[l].global_forcing.data = malloc((num_months + 1) * sizeof(DataPoint));

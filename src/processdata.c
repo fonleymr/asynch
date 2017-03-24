@@ -1277,10 +1277,7 @@ int DumpPeakFlowText(Link* sys, GlobalVars* globals, unsigned int N, int* assign
                 Link *current = &sys[loc];
 
                 if (assignments[loc] == my_rank)
-                {
-                    //TODO
-                    //globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
-                }
+                    globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
                 else
                 {
                     unsigned int length;
@@ -1304,7 +1301,7 @@ int DumpPeakFlowText(Link* sys, GlobalVars* globals, unsigned int N, int* assign
                 if (assignments[loc] == my_rank)
                 {
                     //TODO
-                    //globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
+                    globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
                     unsigned int length = (unsigned int)strlen(buffer);
                     MPI_Send(&length, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD);
                     MPI_Send(buffer, length + 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
@@ -1397,7 +1394,7 @@ int DumpPeakFlowDB(Link* sys, GlobalVars* globals, unsigned int N, int* assignme
                 if (assignments[loc] == my_rank)
                 {
                     //TODO
-                    //globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
+                    globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
                     length = (unsigned int)strlen(buffer);
                 }
                 else
@@ -1452,7 +1449,7 @@ int DumpPeakFlowDB(Link* sys, GlobalVars* globals, unsigned int N, int* assignme
                 if (assignments[loc] == my_rank)
                 {
                     //TODO
-                    //globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
+                    globals->peakflow_output(current->ID, current->peak_time, current->peak_value, current->params, globals->global_params, conversion, globals->area_idx, current->peakoutput_user, buffer);
                     length = (unsigned int)strlen(buffer);
                     MPI_Send(&length, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD);
                     MPI_Send(buffer, length + 1, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
@@ -1558,7 +1555,7 @@ int DumpStateH5(Link* sys, unsigned int N, int* assignments, GlobalVars* globals
         else
         {
             unix_time = (unsigned int)globals->end_time;
-            snprintf(dump_loc_filename, ASYNCH_MAX_PATH_LENGTH, "%s.h5", globals->dump_loc_filename);
+            snprintf(dump_loc_filename, ASYNCH_MAX_PATH_LENGTH, "%s", globals->dump_loc_filename);
         }
 
 

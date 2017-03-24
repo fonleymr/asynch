@@ -78,7 +78,7 @@ void Transfer_Data(TransData* my_data, Link* sys, int* assignments, GlobalVars* 
                             MPI_Pack(&(node->t), 1, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                             MPI_Pack(node->y_approx, dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
-                            MPI_Pack(node->k, num_stages * dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
+                            MPI_Pack(node->k, num_stages * num_dense, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                             
                             MPI_Pack(&(node->state), 1, MPI_INT, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
@@ -154,7 +154,7 @@ void Transfer_Data(TransData* my_data, Link* sys, int* assignments, GlobalVars* 
                         MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->t), 1, MPI_DOUBLE, MPI_COMM_WORLD);
                         MPI_Unpack(my_data->receive_buffer[i], count, &position, node->y_approx, dim, MPI_DOUBLE, MPI_COMM_WORLD);
                         
-                        MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * dim, MPI_DOUBLE, MPI_COMM_WORLD);
+                        MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * num_dense, MPI_DOUBLE, MPI_COMM_WORLD);
                         
                         MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->state), 1, MPI_INT, MPI_COMM_WORLD);
                     }
@@ -314,7 +314,7 @@ void Transfer_Data_Finish(TransData* my_data, Link* sys, int* assignments, Globa
                                 MPI_Pack(&(node->t), 1, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                                 MPI_Pack(node->y_approx, dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
-                                MPI_Pack(node->k, num_stages * dim, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
+                                MPI_Pack(node->k, num_stages * num_dense, MPI_DOUBLE, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
                                 MPI_Pack(&(node->state), 1, MPI_INT, my_data->send_buffer[i], my_data->send_buffer_size[i], &position, MPI_COMM_WORLD);
 
                                 Remove_Head_Node(&current->my->list);
@@ -387,7 +387,7 @@ void Transfer_Data_Finish(TransData* my_data, Link* sys, int* assignments, Globa
                             node->t = 0.0; node->state = 0;
                             MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->t), 1, MPI_DOUBLE, MPI_COMM_WORLD);
                             MPI_Unpack(my_data->receive_buffer[i], count, &position, node->y_approx, dim, MPI_DOUBLE, MPI_COMM_WORLD);
-                            MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * dim, MPI_DOUBLE, MPI_COMM_WORLD);
+                            MPI_Unpack(my_data->receive_buffer[i], count, &position, node->k, num_stages * num_dense, MPI_DOUBLE, MPI_COMM_WORLD);
 
                             //MPI_Unpack(my_data->receive_buffer[i],count,&position,node->k[n].ve,dim,MPI_DOUBLE,MPI_COMM_WORLD);
                             MPI_Unpack(my_data->receive_buffer[i], count, &position, &(node->state), 1, MPI_INT, MPI_COMM_WORLD);

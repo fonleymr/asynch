@@ -85,7 +85,7 @@ double InitialStepSize(double t, Link* link_i, const GlobalVars * const globals,
                 curr_parent_approx[idx] = curr_node->y_approx[idx];
 
                 for (unsigned int l = 0; l < num_stages; l++)
-                    curr_parent_approx[idx] += timediff * curr_parent->method->b_theta[l] * curr_node->next->k[l * num_stages + m];
+                    curr_parent_approx[idx] += timediff * curr_parent->method->b_theta[l] * curr_node->next->k[l * num_dense + m];
             }
             link_i->check_consistency(curr_parent_approx, curr_parent->dim, globals->global_params, globals->num_global_params, curr_parent->params, link_i->num_params, curr_parent->user);
 

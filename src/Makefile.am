@@ -5,31 +5,32 @@ libasynch_a_SOURCES = \
   blas.c \
   comm.c \
   compression.c \
+  config_gbl.c \
   data_types.c \
   db.c \
   forcings.c forcings_io.c \
   io.c \
   misc.c \
-  modeloutputs.c \
+  outputs.c \
   partition.c \
   processdata.c \
   riversys.c \
   rksteppers.c \
   sort.c \
   system.c \
-  models/252.c \
   models/check_consistency.c \
   models/check_state.c \
+  models/definitions.c \
+  models/equations.c \
   solvers/dopri5_dense.c \
   solvers/lagrange.c \
   solvers/radau.c \
   solvers/rk3_2_dense.c \
   solvers/rk4_3_dense.c \
-  steppers/explicit.c
-
-#  steppers/explicit_discont.c
-#  steppers/explicit_index1.c
-#  steppers/explicit_index1_dam.c
+  steppers/explicit.c \
+  steppers/explicit_index1.c \
+  steppers/explicit_index1_dam.c \
+  steppers/forced.c
 
 bin_PROGRAMS = asynch
 asynch_SOURCES = optparse.c asynchdist.c

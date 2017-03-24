@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <math.h>
 
+
+#include <minmax.h>
 #include <models/equations.h>
 
 

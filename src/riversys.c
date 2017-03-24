@@ -4,8 +4,6 @@
 #include <config_msvc.h>
 #endif
 
-#include <Windows.h>
-
 #include <assert.h>
 #include <math.h>
 #include <memory.h>

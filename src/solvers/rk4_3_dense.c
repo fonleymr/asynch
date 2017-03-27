@@ -43,7 +43,7 @@ void TheRKDense4_3(RKMethod* method)
     method->localorder = 4;
 
     //Build the parameters for the method
-    __declspec(align(16)) const double A[][4] = {
+    const double A[][4] = {
         { 0.0, 0.0, 0.0, 0.0 },
         { 0.5, 0.0, 0.0, 0.0 },
         { 0.0, 0.5, 0.0, 0.0 },
@@ -54,7 +54,7 @@ void TheRKDense4_3(RKMethod* method)
     //A[3][2] = 1;
     method->A = A[0];
 
-    __declspec(align(16)) double b[] = { 1.0 / 6.0, 2.0 / 6.0, 2.0 / 6.0, 1.0 / 6.0 };
+    double b[] = { 1.0 / 6.0, 2.0 / 6.0, 2.0 / 6.0, 1.0 / 6.0 };
     //b[0] = 1.0 / 6.0;
     //b[1] = 2.0 / 6.0;
     //b[2] = 2.0 / 6.0;
@@ -63,21 +63,21 @@ void TheRKDense4_3(RKMethod* method)
 
     method->dense_b(1.0, method->b_theta);
 
-    __declspec(align(16)) const double c[] = { 0.0, 0.5 , 0.5, 1.0 };
+    const double c[] = { 0.0, 0.5 , 0.5, 1.0 };
     //c[0] = 0;
     //c[1] = .5;
     //c[2] = .5;
     //c[3] = 1;
     method->c = c;
 
-    __declspec(align(16)) const double e[] = { 2.0 / 3.0, 0.0, -4.0 / 3.0, 2.0 / 3.0 };
+    const double e[] = { 2.0 / 3.0, 0.0, -4.0 / 3.0, 2.0 / 3.0 };
     //e[0] = 2.0 / 3.0;
     //e[1] = 0.0;
     //e[2] = -4.0 / 3.0;
     //e[3] = 2.0 / 3.0;
     method->e = e;
 
-    __declspec(align(16)) const double d[] = { 2.0 / 9.0, 0.0, -4.0 / 9.0, 2.0 / 9.0 };
+    const double d[] = { 2.0 / 9.0, 0.0, -4.0 / 9.0, 2.0 / 9.0 };
     //d[0] = 2.0 / 9.0;
     //d[1] = 0.0;
     //d[2] = -4.0 / 9.0;

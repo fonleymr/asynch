@@ -7,6 +7,7 @@ libasynch_a_SOURCES = \
   compression.c \
   config_gbl.c \
   data_types.c \
+  date_manip.c \
   db.c \
   forcings.c forcings_io.c \
   io.c \

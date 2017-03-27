@@ -29,9 +29,9 @@ void DOPRI5_dense(RKMethod* method)
     method->unique_c = 6;
     method->exp_imp = 0;
     //method->A = m_get(method->num_stages, method->num_stages);
-    method->b = malloc(method->num_stages * sizeof(double), 16);
-    method->b_theta = malloc(method->num_stages * sizeof(double), 16);
-    method->b_theta_deriv = malloc(method->num_stages * sizeof(double), 16);
+    method->b = malloc(method->num_stages * sizeof(double));
+    method->b_theta = malloc(method->num_stages * sizeof(double));
+    method->b_theta_deriv = malloc(method->num_stages * sizeof(double));
     //method->c = v_get(method->num_stages);
     method->dense_b = &DOPRI5_b;
     method->dense_bderiv = &DOPRI5_bderiv;
@@ -49,7 +49,7 @@ void DOPRI5_dense(RKMethod* method)
     method->localorder = 5;
 
     //Build the parameters for the method
-    __declspec(align(16)) static const double A[][7] = {
+    static const double A[][7] = {
         { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
         { 1.0 / 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
         { 3.0 / 40.0, 9.0 / 40.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
@@ -115,7 +115,7 @@ void DOPRI5_dense(RKMethod* method)
     //d[6] = -12.378961267605213;
     method->d = d;
 
-    method->w = malloc(method->num_stages * sizeof(double), 16);
+    method->w = malloc(method->num_stages * sizeof(double));
     lagrange_weights(method->c, method->num_stages, method->w);
 }
 

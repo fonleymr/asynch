@@ -43,7 +43,7 @@ int* Partition_System_By_Leaves(Link *sys, unsigned int N, Link **leaves, unsign
     
     //Pointer to this processes links (in sys)
     *my_sys = malloc(my_max_nodes * sizeof(Link *));
-    memset(*my_sys, my_max_nodes * sizeof(Link *), 0);
+    memset(*my_sys, 0, my_max_nodes * sizeof(Link *));
     
     for (i = start_index; i < end_index; i++)
         (*my_sys)[i - start_index] = leaves[i];
@@ -221,7 +221,7 @@ int* Partition_System_By_Leaves_2(Link *sys, unsigned int N, Link **leaves, unsi
 
     //Pointer to this processes links (in sys)
     *my_sys = malloc(my_max_nodes * sizeof(Link *));
-    memset(*my_sys, my_max_nodes * sizeof(Link *), 0);
+    memset(*my_sys, 0, my_max_nodes * sizeof(Link *));
 
     for (i = 0; i < my_max_nodes; i++)
         (*my_sys)[i] = NULL;

@@ -24,8 +24,8 @@ void RadauIIA3_dense(RKMethod *method)
     method->unique_c = 3;
     method->exp_imp = 1;
     //method->A = m_get(method->num_stages, method->num_stages);
-    method->b = malloc(method->num_stages * sizeof(double), 16);
-    method->b_theta = malloc(method->num_stages * sizeof(double), 16);
+    method->b = malloc(method->num_stages * sizeof(double));
+    method->b_theta = malloc(method->num_stages * sizeof(double));
     method->b_theta_deriv = NULL;
     //method->c = v_get(method->num_stages);
     //method->e = v_get(method->num_stages + 1);
@@ -97,7 +97,7 @@ void RadauIIA3_dense(RKMethod *method)
 
     */
 
-    method->w = malloc(method->num_stages * sizeof(double), 16);
+    method->w = malloc(method->num_stages * sizeof(double));
     lagrange_weights(method->c, method->num_stages, method->w);
 }
 

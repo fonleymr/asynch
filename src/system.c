@@ -151,8 +151,8 @@ void Init_List(RKSolutionList* list, double t0, double *y0, unsigned int num_dof
 void Destroy_List(RKSolutionList* list, unsigned int list_length)
 {
     free(list->nodes);
-    _mm_free(list->y_storage);
-    _mm_free(list->k_storage);
+    free(list->y_storage);
+    free(list->k_storage);
 }
 
 //Removes the first node in list.
@@ -184,11 +184,11 @@ void Destroy_RKMethod(RKMethod* method)
     assert(method != NULL);
 
     //if (method->b)
-    //    _mm_free(method->b);
+    //    free(method->b);
     //if (method->b_theta)
-    //    _mm_free(method->b_theta);
+    //    free(method->b_theta);
     //if (method->b_theta_deriv)
-    //    _mm_free(method->b_theta_deriv);
+    //    free(method->b_theta_deriv);
 }
 
 //Frees an ErrorData
@@ -238,10 +238,10 @@ void Create_Workspace(Workspace *workspace, unsigned int num_dof, unsigned short
 //Deallocates workspace for RK solvers
 void Destroy_Workspace(Workspace* workspace, unsigned short int num_stages, unsigned short int max_parents)
 {
-    _mm_free(workspace->sum);
-    _mm_free(workspace->temp);    
-    _mm_free(workspace->temp2);
-    _mm_free(workspace->temp3);
+    free(workspace->sum);
+    free(workspace->temp);    
+    free(workspace->temp2);
+    free(workspace->temp3);
 
     //for (unsigned int i = 0; i < num_stages; i++)
     //{
@@ -249,8 +249,8 @@ void Destroy_Workspace(Workspace* workspace, unsigned short int num_stages, unsi
     //        v_free(&workspace->temp_parent_approx[i][j]);
     //    free(workspace->temp_parent_approx[i]);
     //}
-    _mm_free(workspace->parents_approx);
-    _mm_free(workspace->stages_parents_approx);
+    free(workspace->parents_approx);
+    free(workspace->stages_parents_approx);
 
     //for (unsigned int i = 0; i < num_stages; i++)
     //    v_free(&workspace->temp_k[i]);

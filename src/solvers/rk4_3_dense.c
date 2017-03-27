@@ -23,7 +23,7 @@ void TheRKDense4_3(RKMethod* method)
     method->exp_imp = 0;
     //method->A = m_get(method->num_stages, method->num_stages);
     //method->b = v_get(method->num_stages);
-    method->b_theta = malloc(method->num_stages * sizeof(double), 16);
+    method->b_theta = malloc(method->num_stages * sizeof(double));
     method->b_theta_deriv = NULL;
     //method->c = v_get(method->num_stages);
     

@@ -24,9 +24,9 @@ void RKDense3_2(RKMethod* method)
     method->unique_c = 3;
     method->exp_imp = 0;
     //method->A = m_get(method->num_stages, method->num_stages);
-    method->b = _mm_malloc(method->num_stages * sizeof(double), 16);
-    method->b_theta = _mm_malloc(method->num_stages * sizeof(double), 16);
-    method->b_theta_deriv = _mm_malloc(method->num_stages * sizeof(double), 16);
+    method->b = malloc(method->num_stages * sizeof(double));
+    method->b_theta = malloc(method->num_stages * sizeof(double));
+    method->b_theta_deriv = malloc(method->num_stages * sizeof(double));
     //method->c = v_get(method->num_stages);
     method->dense_b = &RKDense3_2_b;
     method->dense_bderiv = &RKDense3_2_bderiv;
@@ -42,7 +42,7 @@ void RKDense3_2(RKMethod* method)
     method->localorder = 3;
 
     //Build the coefficients for the method
-    __declspec(align(16)) const double A[][3] = {
+    const double A[][3] = {
         { 0.0, 0.0, 0.0 },
         { 0.5, 0.0, 0.0 },
         { -1.0, 2.0, 0.0 }
@@ -55,19 +55,19 @@ void RKDense3_2(RKMethod* method)
     method->dense_b(1.0, method->b);
     method->dense_b(1.0, method->b_theta);
 
-    __declspec(align(16)) const double c[] = { 0.0, 0.5, 1.0 };
+    const double c[] = { 0.0, 0.5, 1.0 };
     //c[0] = 0.0;
     //c[1] = .5;
     //c[2] = 1.0;
     method->c = c;
 
-    __declspec(align(16)) const double e[] = { 2.0 / 3.0, -4.0 / 3.0, 2.0 / 3.0 };
+    const double e[] = { 2.0 / 3.0, -4.0 / 3.0, 2.0 / 3.0 };
     //e[0] = 2.0 / 3.0;
     //e[1] = -4.0 / 3.0;
     //e[2] = 2.0 / 3.0;
     method->e = e;
 
-    __declspec(align(16)) const double d[] = { 1.0 / 3.0, -2.0 / 3.0, 1.0 / 3.0 };
+    const double d[] = { 1.0 / 3.0, -2.0 / 3.0, 1.0 / 3.0 };
     //d[0] = 1.0 / 3.0;
     //d[1] = -2.0 / 3.0;
     //d[2] = 1.0 / 3.0;

@@ -128,8 +128,8 @@ void Init_List(RKSolutionList* list, double t0, double *y0, unsigned int num_dof
     list->nodes[list_length - 1].prev = &list->nodes[list_length - 2];
 
     //Allocate space for all the vectors
-    list->y_storage = _mm_malloc(list_length * num_dof * sizeof(double), 16);
-    list->k_storage = _mm_malloc(list_length * num_stages * num_dense_dof * sizeof(double), 16);
+    list->y_storage = malloc(list_length * num_dof * sizeof(double));
+    list->k_storage = malloc(list_length * num_stages * num_dense_dof * sizeof(double));
 
     for (unsigned int i = 0; i < list_length; i++)
     {
@@ -206,14 +206,14 @@ void Create_Workspace(Workspace *workspace, unsigned int num_dof, unsigned short
 {
     memset(workspace, 0, sizeof(Workspace));
 
-    workspace->sum =_mm_malloc(num_dof * sizeof(double), 16);
-    workspace->temp = _mm_malloc(num_dof * sizeof(double), 16);
-    workspace->temp2 = _mm_malloc(num_dof * sizeof(double), 16);
-    workspace->temp3 = _mm_malloc(num_dof * sizeof(double), 16);
+    workspace->sum =malloc(num_dof * sizeof(double));
+    workspace->temp = malloc(num_dof * sizeof(double));
+    workspace->temp2 = malloc(num_dof * sizeof(double));
+    workspace->temp3 = malloc(num_dof * sizeof(double));
 
 
-    workspace->parents_approx = _mm_malloc(max_parents * num_dof * sizeof(double), 16);
-    workspace->stages_parents_approx = _mm_malloc(num_stages * max_parents * num_dof * sizeof(double), 16);
+    workspace->parents_approx = malloc(max_parents * num_dof * sizeof(double));
+    workspace->stages_parents_approx = malloc(num_stages * max_parents * num_dof * sizeof(double));
 
     //workspace->temp_k = (VEC*)malloc(num_stages * sizeof(VEC));
     //for (unsigned int i = 0; i < num_stages; i++)

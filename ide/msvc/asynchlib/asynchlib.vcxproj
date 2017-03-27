@@ -91,6 +91,7 @@
     <ClInclude Include="$(RootDir)\src\compression.h" />
     <ClInclude Include="$(RootDir)\src\data_types.h" />
     <ClInclude Include="..\..\..\src\advance.h" />
+    <ClInclude Include="..\..\..\src\date_manip.h" />
     <ClInclude Include="..\..\..\src\models\definitions.h" />
     <ClInclude Include="..\..\..\src\models\equations.h" />
     <ClInclude Include="..\..\..\src\model_def.h" />
@@ -124,6 +125,7 @@
     <ClCompile Include="$(RootDir)\src\compression.c" />
     <ClCompile Include="$(RootDir)\src\data_types.c" />
     <ClCompile Include="..\..\..\src\advance.c" />
+    <ClCompile Include="..\..\..\src\date_manip.c" />
     <ClCompile Include="..\..\..\src\models\definitions.c" />
     <ClCompile Include="..\..\..\src\models\equations.c" />
     <ClCompile Include="$(RootDir)\src\forcings.c" />

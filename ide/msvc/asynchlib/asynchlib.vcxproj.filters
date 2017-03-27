@@ -135,6 +135,9 @@
     <ClCompile Include="..\..\..\src\models\definitions.c">
       <Filter>Source Files\models</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\date_manip.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(RootDir)\src\asynch_interface.h">
@@ -228,6 +231,9 @@
       <Filter>Header Files\models</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\rksteppers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\date_manip.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

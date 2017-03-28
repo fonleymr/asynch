@@ -130,7 +130,7 @@ void WriteValue(FILE* outputfile, const char* specifier, char* data_storage, sho
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    fprintf(outputfile, delim);
+    fprintf(outputfile, "%s", delim);
 }
 
 unsigned int WriteStep(Output *output, unsigned int num_outputs, FILE* outputfile, unsigned int id, double t, double *y, unsigned int num_dof, long int* pos_offset)
@@ -205,7 +205,7 @@ unsigned int CatBinaryToString(char* submission, const char* specifier, void* da
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 
-    sprintf(&(submission[written++]), delim);
+    sprintf(&(submission[written++]), "%s", delim);
 
     return written;
 }

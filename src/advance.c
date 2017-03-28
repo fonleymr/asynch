@@ -274,6 +274,7 @@ void Advance(
                             if ((current->current_iterations >= globals->iter_limit) && (current->last_t > child->last_t))
                                 child->h = min(child->h, current->last_t - child->last_t);
 
+                            // TODO improve on this
                             if(child->h + child->last_t > current->last_t)
                                 child->h *= .999;
 
@@ -296,6 +297,7 @@ void Advance(
                             if (current->parents[i]->current_iterations >= globals->iter_limit)
                                 current->h = min(current->h, current->parents[i]->last_t - current->last_t);
 
+                            // TODO improve on this
                             if(current->h + current->last_t > current->parents[i]->last_t)
                                 current->h *= .999;
                         }

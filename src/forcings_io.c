@@ -19,10 +19,7 @@
 #endif
 
 
-extern int my_rank;
-extern int np;
-
-
+#include <globals.h>
 #include <compression.h>
 #include <comm.h>
 #include <date_manip.h>
@@ -62,7 +59,7 @@ int Create_Rain_Data_Par(
     Link* current;
     float forcing_buffer;
     unsigned int holder;
-    char filename[128];
+    char filename[ASYNCH_MAX_PATH_LENGTH];
     FILE* stormdata = NULL;
     unsigned int numfiles = last - first + 1;
 
@@ -634,14 +631,18 @@ int Create_Rain_Database(
     {
         //Allocate space
         MPI_Bcast(&tuple_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
-        db_unix_time = malloc(tuple_count * sizeof(unsigned int));
-        db_rain_intens = malloc(tuple_count * sizeof(float));
-        db_link_id = malloc(tuple_count * sizeof(unsigned int));
 
-        //Receive the data
-        MPI_Bcast(db_unix_time, tuple_count, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(db_rain_intens, tuple_count, MPI_FLOAT, 0, MPI_COMM_WORLD);
-        MPI_Bcast(db_link_id, tuple_count, MPI_INT, 0, MPI_COMM_WORLD);
+        if (tuple_count)
+        {
+            db_unix_time = malloc(tuple_count * sizeof(unsigned int));
+            db_rain_intens = malloc(tuple_count * sizeof(float));
+            db_link_id = malloc(tuple_count * sizeof(unsigned int));
+
+            //Receive the data
+            MPI_Bcast(db_unix_time, tuple_count, MPI_INT, 0, MPI_COMM_WORLD);
+            MPI_Bcast(db_rain_intens, tuple_count, MPI_FLOAT, 0, MPI_COMM_WORLD);
+            MPI_Bcast(db_link_id, tuple_count, MPI_INT, 0, MPI_COMM_WORLD);
+        }
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -1136,7 +1137,8 @@ double CreateForcing_Monthly(
 
     //Set the (local) times for the current month and previous months
     global_forcings->data[month_0].time = t_0;
-    for (i = month_0 - 1; i > -1; i--)	global_forcings->data[i].time = global_forcings->data[i + 1].time - 1.0;
+    for (i = month_0 - 1; i > -1; i--)
+        global_forcings->data[i].time = global_forcings->data[i + 1].time - 1.0;
     current_year = current_time->tm_year + 1900;
 
     //Find days until next month

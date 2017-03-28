@@ -1692,10 +1692,6 @@ int Load_Forcings(
     Forcing* forcings,
     ConnData* db_connections)
 {
-    unsigned int limit, id, loc;
-    FILE* forcingfile = NULL;
-    Link* current;
-
     // Create an MPI type for struct DataPoint
     const int nitems = 2;
     int          blocklengths[2] = { 1,1 };
@@ -1712,7 +1708,7 @@ int Load_Forcings(
     //Reserve space for forcing data
     for (unsigned int i = 0; i < my_N; i++)
     {
-        current = my_sys[i];
+        Link *current = my_sys[i];
         current->my->forcing_data = malloc(globals->num_forcings * sizeof(TimeSerie));
         current->my->forcing_values = calloc(globals->num_forcings, sizeof(double));
         current->my->forcing_change_times = calloc(globals->num_forcings, sizeof(double));
@@ -1747,6 +1743,9 @@ int Load_Forcings(
         }
         else if (forcings[l].flag == 1)	//Storm file
         {
+            unsigned int limit;
+            FILE* forcingfile = NULL;
+
             //Set routines
             forcings[l].GetPasses = &PassesOther;
             forcings[l].GetNextForcing = &NextForcingOther;
@@ -1766,7 +1765,7 @@ int Load_Forcings(
                     fclose(forcingfile);
                     return 1;
                 }
-
+                
                 fscanf(forcingfile, "%u", &limit);
                 if (limit != N && (!(globals->res_flag) || l != globals->res_forcing_idx))
                 {
@@ -1786,6 +1785,7 @@ int Load_Forcings(
                 if (my_rank == 0)
                 {
                     //Get location
+                    unsigned int id;
                     fscanf(forcingfile, "%i", &id);
                     loc = find_link_by_idtoloc(id, id_to_loc, N);
                     if (loc >= N)
@@ -1857,7 +1857,7 @@ int Load_Forcings(
                     }
                     else	//No reservoir here
                     {
-                        m = 2;	//Init value (assumed 0.0)
+                        unsigned int m = 2;	//Init value (assumed 0.0)
 
                         forcing_data->data = malloc(m * sizeof(DataPoint));
                         forcing_data->num_points = m;
@@ -1966,7 +1966,7 @@ int Load_Forcings(
             //Read the index file
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l].filename, "r");
+                FILE* forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
                     printf("Error: forcing file %s not found.\n", forcings[l].filename);
@@ -2001,8 +2001,8 @@ int Load_Forcings(
                     printf("Error: lookup file %s not found.\n", forcings[l].lookup_filename);
                     return 1;
                 }
-                forcings[l].grid_to_linkid = (unsigned int**)malloc(forcings[l].num_cells * sizeof(unsigned int*));
-                forcings[l].num_links_in_grid = (unsigned int*)calloc(forcings[l].num_cells, sizeof(unsigned int));
+                forcings[l].grid_to_linkid = malloc(forcings[l].num_cells * sizeof(unsigned int*));
+                forcings[l].num_links_in_grid = calloc(forcings[l].num_cells, sizeof(unsigned int));
 
                 while (!feof(forcingfile))	//Count the number of links in each grid cell
                 {
@@ -2027,6 +2027,7 @@ int Load_Forcings(
                 free(counters);
 
                 //Check if a grid cell file actually exists
+                unsigned int i;
                 for (i = forcings[l].first_file; i < forcings[l].last_file; i++)
                 {
                     sprintf(tempspace2, "%s%u", forcings[l].fileident, i);
@@ -2053,10 +2054,10 @@ int Load_Forcings(
             MPI_Bcast(forcings[l].num_links_in_grid, forcings[l].num_cells, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
             if (my_rank != 0)
             {
-                for (i = 0; i < forcings[l].num_cells; i++)
+                for (unsigned int i = 0; i < forcings[l].num_cells; i++)
                     forcings[l].grid_to_linkid[i] = (unsigned int*)malloc(forcings[l].num_links_in_grid[i] * sizeof(unsigned int));
             }
-            for (i = 0; i < forcings[l].num_cells; i++)
+            for (unsigned int i = 0; i < forcings[l].num_cells; i++)
                 MPI_Bcast(forcings[l].grid_to_linkid[i], forcings[l].num_links_in_grid[i], MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
             forcings[l].received = (char*)malloc(forcings[l].num_cells * sizeof(char));
@@ -2173,7 +2174,7 @@ int Load_Forcings(
             //Read uniform data
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l].filename, "r");
+                FILE* forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
                     printf("[%i]: Error: cannot open uniform forcing file %s.\n", my_rank, forcings[l].filename);
@@ -2254,7 +2255,7 @@ int Load_Forcings(
             //Read monthly file
             if (my_rank == 0)
             {
-                forcingfile = fopen(forcings[l].filename, "r");
+                FILE* forcingfile = fopen(forcings[l].filename, "r");
                 if (!forcingfile)
                 {
                     printf("Error: cannot open uniform forcing file %s.\n", forcings[l].filename);
@@ -3104,7 +3105,7 @@ int Create_SAV_Data(char filename[], Link* sys, unsigned int N, unsigned int** s
         if (my_rank == 0)
         {
             ConnectPGDB(conninfo);
-            sprintf(conninfo->query, conninfo->queries[0]);
+            sprintf(conninfo->query, "%s", conninfo->queries[0]);
             res = PQexec(conninfo->conn, conninfo->query);
             error = CheckResError(res, "locating links with sensors");
 

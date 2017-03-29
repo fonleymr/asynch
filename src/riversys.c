@@ -2822,7 +2822,7 @@ int CalculateInitialStepSizes(
 int BuildSaveLists(
     Link* system, unsigned int N,
     Link **my_sys, unsigned int my_N,
-    unsigned int* assignments, const Lookup * const id_to_loc,
+    int* assignments, const Lookup * const id_to_loc,
     GlobalVars* globals, unsigned int** save_list, unsigned int* save_size, unsigned int* my_save_size, unsigned int** peaksave_list, unsigned int* peaksave_size, unsigned int* my_peaksave_size, ConnData* db_connections)
 {
     unsigned int j, k;
@@ -2918,7 +2918,7 @@ int BuildSaveLists(
 int FinalizeSystem(
     Link* system, unsigned int N,
     Link **my_sys, unsigned int my_N,
-    unsigned int* assignments, short int* getting, const Lookup * const id_to_loc, TransData* my_data, GlobalVars* globals, ConnData* db_connections, Workspace* workspace)
+    int* assignments, short int* getting, const Lookup * const id_to_loc, TransData* my_data, GlobalVars* globals, ConnData* db_connections, Workspace* workspace)
 {
     unsigned int i, j;
     int ii;

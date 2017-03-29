@@ -867,7 +867,7 @@ void PrepareDatabaseTable(GlobalVars* globals, ConnData* conninfo)
             {
                 if (globals->outputs[i].type != ASYNCH_DOUBLE)
                 {
-                    printf("[%i]: Error: Output %i is of type double precision in output table, but should not be. %hi\n", my_rank, i, globals->outputs[i].type);
+                    printf("[%i]: Error: Output %i is of type double precision in output table, but should not be. %i\n", my_rank, i, globals->outputs[i].type);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
             }
@@ -875,7 +875,7 @@ void PrepareDatabaseTable(GlobalVars* globals, ConnData* conninfo)
             {
                 if (globals->outputs[i].type != ASYNCH_INT)
                 {
-                    printf("[%i]: Error: Output %i is of type integer in output table, but should not be. %hi\n", my_rank, i, globals->outputs[i].type);
+                    printf("[%i]: Error: Output %i is of type integer in output table, but should not be. %i\n", my_rank, i, globals->outputs[i].type);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
             }
@@ -883,7 +883,7 @@ void PrepareDatabaseTable(GlobalVars* globals, ConnData* conninfo)
             {
                 if (globals->outputs[i].type != ASYNCH_FLOAT)
                 {
-                    printf("[%i]: Error: Output %i is of type single precision in output table, but should not be. %hi\n", my_rank, i, globals->outputs[i].type);
+                    printf("[%i]: Error: Output %i is of type single precision in output table, but should not be. %i\n", my_rank, i, globals->outputs[i].type);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
             }
@@ -891,7 +891,7 @@ void PrepareDatabaseTable(GlobalVars* globals, ConnData* conninfo)
             {
                 if (globals->outputs[i].type != ASYNCH_SHORT)
                 {
-                    printf("[%i]: Error: Output %i is of type short integer in output table, but should not be. %hi\n", my_rank, i, globals->outputs[i].type);
+                    printf("[%i]: Error: Output %i is of type short integer in output table, but should not be. %i\n", my_rank, i, globals->outputs[i].type);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
             }
@@ -899,7 +899,7 @@ void PrepareDatabaseTable(GlobalVars* globals, ConnData* conninfo)
             {
                 if (globals->outputs[i].type != ASYNCH_CHAR)
                 {
-                    printf("[%i]: Error: Output %i is of type character in output table, but should not be. %hi\n", my_rank, i, globals->outputs[i].type);
+                    printf("[%i]: Error: Output %i is of type character in output table, but should not be. %i\n", my_rank, i, globals->outputs[i].type);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
             }

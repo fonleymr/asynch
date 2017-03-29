@@ -4,8 +4,7 @@
 #include <config_msvc.h>
 #endif
 
-#include <malloc.h>
-//#include <stdlib.h>
+#include <stdlib.h>
 //#include <math.h>
 //#if defined(HAVE_UNISTD_H)
 //#include <unistd.h>

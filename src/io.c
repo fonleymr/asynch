@@ -168,7 +168,7 @@ unsigned int WriteStep(Output *output, unsigned int num_outputs, FILE* outputfil
             break;
         }
         default:
-            printf("[%i]: Error: Invalid output %s (%hi).\n", my_rank, output[i].specifier, output[i].type);
+            printf("[%i]: Error: Invalid output %s (%i).\n", my_rank, output[i].specifier, output[i].type);
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
         total_written += output[i].size;

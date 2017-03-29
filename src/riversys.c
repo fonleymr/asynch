@@ -1577,7 +1577,7 @@ static int Load_Initial_Conditions_H5(
                 MPI_Send(y_0, dim, MPI_DOUBLE, assignments[loc], 2, MPI_COMM_WORLD);
             if (!(getting[loc]))
             {
-                unsigned int j;
+                int j;
                 for (j = 0; j < np; j++)
                     if (who_needs[j] == 2)
                         break;
@@ -1743,7 +1743,7 @@ int Load_Forcings(
         }
         else if (forcings[l].flag == 1)	//Storm file
         {
-            unsigned int limit;
+            unsigned int limit, loc;
             FILE* forcingfile = NULL;
 
             //Set routines
@@ -2018,7 +2018,7 @@ int Load_Forcings(
 
                 while (!feof(forcingfile))	//Read in the link ids
                 {
-                    unsigned int j;
+                    unsigned int id, j;
                     if (!fscanf(forcingfile, "%u %u", &id, &j))	break;
                     forcings[l].grid_to_linkid[j][counters[j]++] = id;
                 }

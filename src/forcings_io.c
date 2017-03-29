@@ -555,8 +555,8 @@ int Create_Rain_Database(
     int received_time;
     char* query = conninfo->query;
     PGresult *res;
-    unsigned int *db_unix_time, *db_link_id;
-    float *db_rain_intens;
+    unsigned int *db_unix_time = NULL, *db_link_id = NULL;
+    float *db_rain_intens = NULL;
 
     unsigned int *total_times = (unsigned int*)calloc(my_N, sizeof(unsigned int));
     for (i = 0; i < my_N; i++)

@@ -161,7 +161,7 @@ void Asynch_Save_Network_Dot(const AsynchSolver * const asynch, const char *file
 
 //If load_all == 1, then the parameters for every link are available on every proc.
 //If load_all == 0, then the parameters are only available for links assigned to this proc.
-void Asynch_Load_Network_Parameters(AsynchSolver* asynch, short int load_all)
+void Asynch_Partition_Network(AsynchSolver* asynch)
 {
     int i;
     if (!asynch->setup_topo)

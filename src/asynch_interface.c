@@ -1370,7 +1370,7 @@ int Asynch_Set_Global_Parameters(AsynchSolver* asynch, double *gparams, unsigned
         return 1;
     
     asynch->model->num_global_params = num_params;
-    realloc(asynch->globals->global_params, num_params * sizeof(double));
+    asynch->globals->global_params = realloc(asynch->globals->global_params, num_params * sizeof(double));
     dcopy(gparams, asynch->globals->global_params, 0, num_params);
 
     return 0;

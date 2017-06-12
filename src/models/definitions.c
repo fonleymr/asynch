@@ -273,6 +273,17 @@ void SetParamSizes(
         globals->num_forcings = 6;
         break;
         //--------------------------------------------------------------------------------------------
+    case 354:	num_global_params = 13;
+        globals->uses_dam = 0;
+        globals->num_params = 9;
+        globals->dam_params_size = 0;
+        globals->area_idx = 0;
+        globals->areah_idx = 2;
+        globals->num_disk_params = 4;
+        globals->convertarea_flag = 0;
+        globals->num_forcings = 2;
+        break;
+        //--------------------------------------------------------------------------------------------
     case 200:	num_global_params = 10;
         globals->uses_dam = 0;
         globals->num_params = 20;
@@ -473,6 +484,11 @@ void ConvertParams(
         params[2] *= 1e6;	//A_h: km^2 -> m^2
     }
     else if (model_uid == 190 || model_uid == 191)
+    {
+        params[1] *= 1000;	//L: km -> m
+        params[2] *= 1e6;	//A_h: km^2 -> m^2
+    }
+    else if (model_uid == 354)
     {
         params[1] *= 1000;	//L: km -> m
         params[2] *= 1e6;	//A_h: km^2 -> m^2
@@ -905,6 +921,21 @@ void InitRoutines(
         link->check_state = NULL;
         link->check_consistency = &CheckConsistency_Nonzero_AllStates_q;
     }
+    else if (model_uid == 354)
+    {
+        link->dim = 4;
+        link->no_ini_start = link->dim;
+        link->diff_start = 0;
+
+        link->num_dense = 1;
+        link->dense_indices = (unsigned int*)realloc(link->dense_indices, link->num_dense * sizeof(unsigned int));
+        link->dense_indices[0] = 0;
+
+        link->differential = &LinearHillslope_IncludeTiles;
+        link->algebraic = NULL;
+        link->check_state = NULL;
+        link->check_consistency = &CheckConsistency_Nonzero_3States;
+    }
     else if (model_uid == 200)	//This is for use with SIMPLE only
     {
         link->dim = 2;
@@ -1223,6 +1254,29 @@ void Precalculations(
         vals[5] = 60.0*v_r*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
         vals[6] = RC*(0.001 / 60.0);		//(mm/hr->m/min)  c_1
         vals[7] = (1.0 - RC)*(0.001 / 60.0);	//(mm/hr->m/min)  c_2
+    }
+    else if (model_uid == 354)
+    {
+        //Order of parameters: A_i,L_i,A_h,v_r,k2,k3,invtau,c_1,c_2
+        //The numbering is:	0   1   2   3  4    5    6   7   8
+        //Order of global_params: k_i,k_dry,L_tile,k_e,rad,d_e,RC,v_h,v_g,tp_dpth,btm_dpth,lda_1,lda_2
+        //The numbering is:        0   1      2     3  4   5   6   7   8     9       10     11    12
+        double* vals = params;
+        double A_i = params[0];
+        double L_i = params[1];
+        double A_h = params[2];
+        double v_r = params[3];
+        double lambda_1 = global_params[11];
+        double lambda_2 = global_params[12];
+        double RC = global_params[6];
+        double v_h = global_params[7];
+        double v_g = global_params[8];
+
+        vals[4] = 6.85e-5*60;// v_h * L_i / A_h * 60.0;	//[1/min]  k2
+        vals[5] = 1/(10000*24*60);//v_g * L_i / A_h * 60.0;	//[1/min]  k3
+        vals[6] = 60.0*v_r*pow(A_i, lambda_2) / ((1.0 - lambda_1)*L_i);	//[1/min]  invtau
+        vals[7] = RC*(0.001 / 60.0);		//(mm/hr->m/min)  c_1
+        vals[8] = (1.0 - RC)*(0.001 / 60.0);	//(mm/hr->m/min)  c_2
     }
     else if (model_uid == 20)
     {

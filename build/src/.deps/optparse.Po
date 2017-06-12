@@ -1,0 +1,3 @@
+optparse.o: ../../src/optparse.c ../../src/optparse.h
+
+../../src/optparse.h:

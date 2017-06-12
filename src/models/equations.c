@@ -1030,6 +1030,93 @@ void LinearHillslope_Reservoirs_extras(double t, const double * const y_i, unsig
     ans[6] = 0.0;
 }
 
+//Type 354
+//Order of parameters: A_i,L_i,A_ih,v_r,k2,k3,invtau,c_1,c_2
+//The numbering is:	0   1   2   3    4  5    6   7    8
+//Order of global_params: ki,kdry,L_tile,k_e,rad,d_e,RC,v_h,v_g,tpDpth,btmDpth,lmda1,lmda2
+//The numbering is:        0  1     2     3   4   5   6  7   8     9    10      11     12
+void LinearHillslope_IncludeTiles(double t, const double * const y_i, unsigned int dim, const double * const y_p, unsigned short num_parents, const double * const global_params, const double * const params, const double * const forcing_values, const QVSData * const qvs, int state, void* user, double *ans)
+{
+    double lambda_1 = global_params[11];
+    double ki = global_params[0];
+    double kdry = global_params[1];
+    double L_tile = global_params[2];
+    double ke = global_params[3];
+    double rad = global_params[4];
+    double de = global_params[5];
+    double RC = global_params[6];
+    double v_h = global_params[7];
+    double v_g = global_params[8];
+    double top_depth = global_params[9];
+    double bottom_depth = global_params[10];
+
+    double L = params[1];
+    double A_h = params[2];
+    double k2 = params[4];
+    double k3 = params[5];
+    double invtau = params[6];
+    double c_1 = params[7];
+    double c_2 = params[8];
+
+    double q = y_i[0];		//[m^3/s]
+    double s_p = y_i[1];	//[m]
+    double s_l = y_i[2];	//[m]
+    double s_s = y_i[3];	//[m^3/s]
+
+    //Evaporation
+    double C_p, C_l, C_z, C_R, thetaR;
+    //double e_pot = forcing_values[1] * (1e-3/60.0);
+    double e_pot = forcing_values[1] *(1e-3/60);  // mm/hr->m/min
+ // (1e-3 / (30.0*24.0*60.0));	//[mm/month] -> [m/min]
+
+    if (e_pot > 0.0)
+    {
+        C_p = s_p;   //C_p = s_p / e_pot;
+        C_l = s_l / top_depth; //C_a = s_a / e_pot;
+        C_R = 1/(C_p+C_l);  //C_T = C_p + C_a;
+    }
+    else
+    {
+        C_p = 0.0;
+        C_l = 0.0;
+        C_R = 0.0;
+    }
+
+    //Corr_evap = (!state && C_T > 0.0) ? 1.0/C_T : 1.0;
+    //Corr_evap = (C_R > 1.0) ? 1.0 / C_R : 1.0;
+
+    double e_p = C_R * C_p * e_pot;
+    double e_l = C_R * C_l * e_pot;
+
+    //Fluxes
+    double qpLink = k2 * pow(s_p,1.67);
+    double qsLink = k3 * s_s;
+    double qpl = kdry * pow((1-s_l/top_depth),12) * s_p;
+    double qls = ki * s_l;
+    double q_tile;
+
+    if(s_s > 0.6)
+    {
+           q_tile = 4*ke*((4*(s_s-0.6)/0.2)/(3.1416))*(2*de*((4*(s_s-0.6)/0.2)/(3.1416)))/(pow(L_tile,2));
+    }
+    else
+    {
+           q_tile = 0.0;
+    }
+
+    //Discharge
+    ans[0] = -q + (qpLink + qsLink + q_tile) * A_h / 60.0;
+    for (unsigned short i = 0; i<num_parents; i++)
+        ans[0] += y_p[i * dim];
+    ans[0] = invtau * pow(q, lambda_1) * ans[0];
+
+    //Hillslope
+    ans[1] = forcing_values[0] * c_1 - qpLink - qpl - e_p;
+    ans[2] = forcing_values[0] * c_2 + qpl - qls - e_l;
+    ans[3] = qls - qsLink - q_tile;
+}
+
+
 
 //Type 20
 //Order of parameters: A_i,L_i,A_h,invtau,c_1,c_2

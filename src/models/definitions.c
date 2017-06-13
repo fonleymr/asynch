@@ -934,7 +934,7 @@ void InitRoutines(
         link->differential = &LinearHillslope_IncludeTiles;
         link->algebraic = NULL;
         link->check_state = NULL;
-        link->check_consistency = &CheckConsistency_Nonzero_3States;
+        link->check_consistency = &CheckConsistency_Nonzero_4States;
     }
     else if (model_uid == 200)	//This is for use with SIMPLE only
     {
